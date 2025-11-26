@@ -1,0 +1,942 @@
+basePath: /
+definitions:
+  handlers.AdminLoginRequest:
+    properties:
+      password:
+        example: password123
+        type: string
+      username:
+        example: admin
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  handlers.ApplyLeaveRequest:
+    properties:
+      end_date:
+        example: "2025-12-05"
+        type: string
+      leave_type_id:
+        example: 1
+        type: integer
+      reason:
+        example: Family vacation
+        type: string
+      start_date:
+        example: "2025-12-01"
+        type: string
+    required:
+    - end_date
+    - leave_type_id
+    - start_date
+    type: object
+  handlers.AuthResponse:
+    properties:
+      employee:
+        $ref: '#/definitions/models.Employee'
+      token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+    type: object
+  handlers.CreateAdminRequest:
+    properties:
+      department:
+        example: Administration
+        type: string
+      email:
+        example: admin2@example.com
+        type: string
+      firstname:
+        example: Admin
+        type: string
+      lastname:
+        example: User
+        type: string
+      password:
+        example: password123
+        minLength: 6
+        type: string
+      username:
+        example: admin2
+        type: string
+    required:
+    - email
+    - firstname
+    - lastname
+    - password
+    - username
+    type: object
+  handlers.CreateEmployeeRequest:
+    properties:
+      department:
+        example: HR
+        type: string
+      email:
+        example: jane@example.com
+        type: string
+      firstname:
+        example: Jane
+        type: string
+      lastname:
+        example: Smith
+        type: string
+      nrc:
+        example: 555666/77/8
+        type: string
+      password:
+        example: password123
+        minLength: 6
+        type: string
+      role:
+        allOf:
+        - $ref: '#/definitions/models.Role'
+        example: manager
+    required:
+    - email
+    - firstname
+    - lastname
+    - nrc
+    - password
+    - role
+    type: object
+  handlers.CreateLeaveTypeRequest:
+    properties:
+      max_days:
+        example: 30
+        minimum: 1
+        type: integer
+      name:
+        example: Sabbatical
+        type: string
+    required:
+    - max_days
+    - name
+    type: object
+  handlers.ErrorResponse:
+    properties:
+      error:
+        example: Invalid credentials
+        type: string
+    type: object
+  handlers.LeaveBalanceResponse:
+    properties:
+      balance:
+        example: 15
+        type: integer
+      leave_type_id:
+        example: 1
+        type: integer
+      leave_type_name:
+        example: Annual
+        type: string
+      max_days:
+        example: 20
+        type: integer
+      used_days:
+        example: 5
+        type: integer
+    type: object
+  handlers.LoginRequest:
+    properties:
+      nrc:
+        example: 123456/78/9
+        type: string
+      password:
+        example: password123
+        type: string
+      username:
+        example: admin
+        type: string
+    required:
+    - password
+    type: object
+  handlers.MessageResponse:
+    properties:
+      message:
+        example: Operation completed successfully
+        type: string
+    type: object
+  handlers.RegisterRequest:
+    properties:
+      department:
+        example: IT
+        type: string
+      email:
+        example: john@example.com
+        type: string
+      firstname:
+        example: John
+        type: string
+      lastname:
+        example: Doe
+        type: string
+      nrc:
+        example: 123456/78/9
+        type: string
+      password:
+        example: password123
+        minLength: 6
+        type: string
+      role:
+        allOf:
+        - $ref: '#/definitions/models.Role'
+        example: employee
+    required:
+    - email
+    - firstname
+    - lastname
+    - nrc
+    - password
+    type: object
+  handlers.UpdateEmployeeRequest:
+    properties:
+      department:
+        example: Finance
+        type: string
+      email:
+        example: jane.doe@example.com
+        type: string
+      firstname:
+        example: Jane
+        type: string
+      lastname:
+        example: Doe
+        type: string
+      role:
+        allOf:
+        - $ref: '#/definitions/models.Role'
+        example: admin
+    type: object
+  models.Employee:
+    properties:
+      created_at:
+        type: string
+      department:
+        type: string
+      email:
+        type: string
+      firstname:
+        type: string
+      id:
+        type: integer
+      lastname:
+        type: string
+      leaves:
+        items:
+          $ref: '#/definitions/models.Leave'
+        type: array
+      nrc:
+        type: string
+      role:
+        $ref: '#/definitions/models.Role'
+      updated_at:
+        type: string
+      username:
+        type: string
+    type: object
+  models.Leave:
+    properties:
+      created_at:
+        type: string
+      employee:
+        $ref: '#/definitions/models.Employee'
+      employee_id:
+        type: integer
+      end_date:
+        type: string
+      id:
+        type: integer
+      leave_type:
+        $ref: '#/definitions/models.LeaveType'
+      leave_type_id:
+        type: integer
+      reason:
+        type: string
+      start_date:
+        type: string
+      status:
+        $ref: '#/definitions/models.LeaveStatus'
+      updated_at:
+        type: string
+    type: object
+  models.LeaveStatus:
+    enum:
+    - Pending
+    - Approved
+    - Rejected
+    type: string
+    x-enum-varnames:
+    - StatusPending
+    - StatusApproved
+    - StatusRejected
+  models.LeaveType:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      leaves:
+        items:
+          $ref: '#/definitions/models.Leave'
+        type: array
+      max_days:
+        type: integer
+      name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.Role:
+    enum:
+    - employee
+    - manager
+    - admin
+    type: string
+    x-enum-varnames:
+    - RoleEmployee
+    - RoleManager
+    - RoleAdmin
+host: localhost:8080
+info:
+  contact:
+    email: support@example.com
+    name: API Support
+  description: |-
+    REST API for Leave Management System - part of HRMS
+    Allows employees to apply for leaves, track balances, and managers to approve/reject requests.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  title: HRMS Leave Management API
+  version: "1.0"
+paths:
+  /api/admins:
+    post:
+      consumes:
+      - application/json
+      description: Create a new admin account with username (Admin only)
+      parameters:
+      - description: Admin data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateAdminRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Employee'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Username or email already exists
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create admin
+      tags:
+      - Admin - Employees
+  /api/employees:
+    get:
+      description: Get list of all employees (Admin only)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Employee'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all employees
+      tags:
+      - Admin - Employees
+    post:
+      consumes:
+      - application/json
+      description: Create a new employee or manager account with NRC (Admin only).
+        Use /api/admins for admin accounts.
+      parameters:
+      - description: Employee data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateEmployeeRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Employee'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: NRC or email already exists
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create employee/manager
+      tags:
+      - Admin - Employees
+  /api/employees/{id}:
+    delete:
+      description: Delete an employee (Admin only)
+      parameters:
+      - description: Employee ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete employee
+      tags:
+      - Admin - Employees
+    get:
+      description: Get a specific employee by ID (Admin only)
+      parameters:
+      - description: Employee ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Employee'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get employee by ID
+      tags:
+      - Admin - Employees
+    put:
+      consumes:
+      - application/json
+      description: Update an employee's information (Admin only)
+      parameters:
+      - description: Employee ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Employee data to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateEmployeeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Employee'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update employee
+      tags:
+      - Admin - Employees
+  /api/leave-types:
+    get:
+      description: Get list of all available leave types (Admin only)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.LeaveType'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all leave types
+      tags:
+      - Admin - Leave Types
+    post:
+      consumes:
+      - application/json
+      description: Create a new leave type (Admin only)
+      parameters:
+      - description: Leave type data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateLeaveTypeRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.LeaveType'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create leave type
+      tags:
+      - Admin - Leave Types
+  /api/leave-types/{id}:
+    delete:
+      description: Delete a leave type (Admin only)
+      parameters:
+      - description: Leave Type ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete leave type
+      tags:
+      - Admin - Leave Types
+    put:
+      consumes:
+      - application/json
+      description: Update an existing leave type (Admin only)
+      parameters:
+      - description: Leave Type ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Leave type data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateLeaveTypeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.LeaveType'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update leave type
+      tags:
+      - Admin - Leave Types
+  /api/leaves:
+    get:
+      description: Get all leave requests for the authenticated employee
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Leave'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get my leave history
+      tags:
+      - Leaves
+    post:
+      consumes:
+      - application/json
+      description: Submit a new leave request
+      parameters:
+      - description: Leave application data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ApplyLeaveRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Leave'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Overlapping leave exists
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Apply for leave
+      tags:
+      - Leaves
+  /api/leaves/{id}/approve:
+    put:
+      description: Approve a pending leave request (Manager/Admin only)
+      parameters:
+      - description: Leave ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Leave'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Approve leave
+      tags:
+      - Manager
+  /api/leaves/{id}/reject:
+    put:
+      description: Reject a pending leave request (Manager/Admin only)
+      parameters:
+      - description: Leave ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Leave'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Reject leave
+      tags:
+      - Manager
+  /api/leaves/balance:
+    get:
+      description: Get remaining leave balance for all leave types
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handlers.LeaveBalanceResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get leave balance
+      tags:
+      - Leaves
+  /api/leaves/pending:
+    get:
+      description: Get all pending leave requests (Manager/Admin only)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Leave'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get pending leaves
+      tags:
+      - Manager
+  /auth/admin/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate admin with username and password, returns JWT token
+      parameters:
+      - description: Admin login credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.AdminLoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.AuthResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Admin login
+      tags:
+      - Authentication
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate employee or manager with NRC and password, returns
+        JWT token
+      parameters:
+      - description: Login credentials (use NRC)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.AuthResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Employee/Manager login
+      tags:
+      - Authentication
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new employee account
+      parameters:
+      - description: Employee registration data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.AuthResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: NRC or email already exists
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Register new employee
+      tags:
+      - Authentication
+securityDefinitions:
+  BearerAuth:
+    description: Enter "Bearer {token}" (without quotes)
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
