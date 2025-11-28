@@ -15,7 +15,9 @@ RUN npm ci
 # Copy client source
 COPY hrmsclient/ ./
 
-# Build client
+# Build client (production mode - will use relative URLs for API)
+# Set mode to production explicitly
+ENV NODE_ENV=production
 RUN npm run build
 
 # Stage 2: Build Go API
