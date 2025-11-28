@@ -34,7 +34,7 @@ func LoadConfig() error {
 		DBName:            getEnv("DB_NAME", "hrms_db"),
 		JWTSecret:         getEnv("JWT_SECRET", "change-this-secret-key-in-production"),
 		JWTExpirationHours: getEnvAsInt("JWT_EXPIRATION_HOURS", 24),
-		Port:              getEnv("PORT", "8080"),
+		Port:              getEnv("PORT", "8070"),
 		GinMode:           getEnv("GIN_MODE", "debug"),
 	}
 

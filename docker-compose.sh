@@ -53,7 +53,8 @@ case "${1:-}" in
         echo -e "${GREEN}Starting services...${NC}"
         $COMPOSE_CMD up -d
         echo -e "${GREEN}✓ Services started${NC}"
-        echo -e "${YELLOW}Access the application at: http://localhost:8070${NC}"
+        echo -e "${YELLOW}Backend API available at: http://localhost:8070${NC}"
+        echo -e "${YELLOW}Frontend dev server should run on: http://localhost:5173${NC}"
         ;;
     down)
         echo -e "${YELLOW}Stopping services...${NC}"
