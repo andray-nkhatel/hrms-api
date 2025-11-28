@@ -19,17 +19,17 @@ COPY hrmsclient/ ./
 RUN npm run build
 
 # Stage 2: Build Go API
-FROM golang:1.22-alpine AS api-builder
+FROM golang:1.24-alpine AS api-builder
 
 WORKDIR /app
 
 # Install build dependencies
-RUN apk add --no-cache git
+RUN apk add --no-cache git ca-certificates
 
 # Copy go mod files
 COPY hrms-api/go.mod hrms-api/go.sum ./
 
-# Download dependencies
+# Download dependencies (will automatically download required Go version if needed)
 RUN go mod download
 
 # Copy source code
