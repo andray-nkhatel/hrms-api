@@ -4,6 +4,8 @@ import (
 	"hrms-api/handlers"
 	"hrms-api/middleware"
 	"hrms-api/models"
+	"net/http"
+	"path/filepath"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -30,6 +32,27 @@ func SetupRoutes() *gin.Engine {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
+
+	// Serve static files from static directory (built Vue app)
+	staticDir := "./static"
+	if _, err := filepath.Abs(staticDir); err == nil {
+		// Serve static assets
+		r.Static("/assets", filepath.Join(staticDir, "assets"))
+		r.StaticFile("/favicon.ico", filepath.Join(staticDir, "favicon.ico"))
+		
+		// Serve index.html for all non-API routes (SPA routing)
+		r.NoRoute(func(c *gin.Context) {
+			// Don't serve index.html for API routes
+			if !filepath.HasPrefix(c.Request.URL.Path, "/api") && 
+			   !filepath.HasPrefix(c.Request.URL.Path, "/auth") &&
+			   !filepath.HasPrefix(c.Request.URL.Path, "/swagger") &&
+			   c.Request.URL.Path != "/health" {
+				c.File(filepath.Join(staticDir, "index.html"))
+			} else {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
+			}
+		})
+	}
 
 	// Public routes
 	auth := r.Group("/auth")
