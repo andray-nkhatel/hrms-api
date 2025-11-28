@@ -17,39 +17,50 @@ func SetupRoutes() *gin.Engine {
 	r := gin.Default()
 
 	// CORS configuration
-	// Use AllowOriginFunc to allow any origin on port 8070 (for network access)
-	// Also allow common development ports
+	// Allow requests from frontend on port 8070 (any IP/hostname) and common dev ports
 	r.Use(cors.New(cors.Config{
 		AllowOriginFunc: func(origin string) bool {
 			// Allow empty origin (same-origin requests, mobile apps, etc.)
 			if origin == "" {
 				return true
 			}
-			
+
 			// Allow if origin ends with :8070 (any IP or hostname)
-			// This handles both http://192.168.1.100:8070 and http://localhost:8070
-			if len(origin) >= 6 && origin[len(origin)-5:] == ":8070" {
-				return true
-			}
-			
-			// Allow common development ports from any host
-			allowedDevPorts := []string{":5173", ":3000", ":8080", ":5174", ":5175"}
-			for _, port := range allowedDevPorts {
-				if len(origin) >= len(port) && origin[len(origin)-len(port):] == port {
+			// This handles http://192.168.1.100:8070, http://localhost:8070, etc.
+			if len(origin) >= 6 {
+				suffix := origin[len(origin)-5:]
+				if suffix == ":8070" {
 					return true
 				}
 			}
-			
-			// Allow localhost without port (same origin)
-			if origin == "http://localhost" || origin == "https://localhost" {
+
+			// Allow common development ports from any host
+			allowedDevPorts := []string{":5173", ":3000", ":8080", ":5174", ":5175"}
+			for _, port := range allowedDevPorts {
+				if len(origin) >= len(port) {
+					suffix := origin[len(origin)-len(port):]
+					if suffix == port {
+						return true
+					}
+				}
+			}
+
+			// Allow localhost variants (with or without port)
+			if origin == "http://localhost" || origin == "https://localhost" ||
+				origin == "http://127.0.0.1" || origin == "https://127.0.0.1" {
 				return true
 			}
-			
-			// Allow 127.0.0.1 variants
-			if origin == "http://127.0.0.1" || origin == "https://127.0.0.1" {
+
+			// Allow any localhost with port
+			if len(origin) > 16 && (origin[:16] == "http://localhost:" || origin[:17] == "https://localhost:") {
 				return true
 			}
-			
+
+			// Allow any 127.0.0.1 with port
+			if len(origin) > 17 && (origin[:17] == "http://127.0.0.1:" || origin[:18] == "https://127.0.0.1:") {
+				return true
+			}
+
 			return false
 		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
@@ -72,14 +83,14 @@ func SetupRoutes() *gin.Engine {
 		// Serve static assets
 		r.Static("/assets", filepath.Join(staticDir, "assets"))
 		r.StaticFile("/favicon.ico", filepath.Join(staticDir, "favicon.ico"))
-		
+
 		// Serve index.html for all non-API routes (SPA routing)
 		r.NoRoute(func(c *gin.Context) {
 			// Don't serve index.html for API routes
-			if !filepath.HasPrefix(c.Request.URL.Path, "/api") && 
-			   !filepath.HasPrefix(c.Request.URL.Path, "/auth") &&
-			   !filepath.HasPrefix(c.Request.URL.Path, "/swagger") &&
-			   c.Request.URL.Path != "/health" {
+			if !filepath.HasPrefix(c.Request.URL.Path, "/api") &&
+				!filepath.HasPrefix(c.Request.URL.Path, "/auth") &&
+				!filepath.HasPrefix(c.Request.URL.Path, "/swagger") &&
+				c.Request.URL.Path != "/health" {
 				c.File(filepath.Join(staticDir, "index.html"))
 			} else {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
