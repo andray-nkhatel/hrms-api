@@ -17,8 +17,28 @@ func SetupRoutes() *gin.Engine {
 	r := gin.Default()
 
 	// CORS configuration
+	// Use AllowOriginFunc to allow any origin on port 8070 (for network access)
+	// Also allow common development ports
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"},
+		AllowOriginFunc: func(origin string) bool {
+			// Allow if origin ends with :8070 (any IP or hostname)
+			// Or if it's a common development port
+			allowedDevPorts := []string{":5173", ":3000", ":8080"}
+			for _, port := range allowedDevPorts {
+				if len(origin) >= len(port) && origin[len(origin)-len(port):] == port {
+					return true
+				}
+			}
+			// Allow port 8070 from any origin (for production/network access)
+			if len(origin) >= 6 && origin[len(origin)-5:] == ":8070" {
+				return true
+			}
+			// Allow localhost without port (same origin)
+			if origin == "http://localhost" || origin == "https://localhost" {
+				return true
+			}
+			return false
+		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
