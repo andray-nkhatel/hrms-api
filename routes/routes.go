@@ -21,26 +21,39 @@ func SetupRoutes() *gin.Engine {
 	// Also allow common development ports
 	r.Use(cors.New(cors.Config{
 		AllowOriginFunc: func(origin string) bool {
+			// Allow empty origin (same-origin requests, mobile apps, etc.)
+			if origin == "" {
+				return true
+			}
+			
 			// Allow if origin ends with :8070 (any IP or hostname)
-			// Or if it's a common development port
-			allowedDevPorts := []string{":5173", ":3000", ":8080"}
+			// This handles both http://192.168.1.100:8070 and http://localhost:8070
+			if len(origin) >= 6 && origin[len(origin)-5:] == ":8070" {
+				return true
+			}
+			
+			// Allow common development ports from any host
+			allowedDevPorts := []string{":5173", ":3000", ":8080", ":5174", ":5175"}
 			for _, port := range allowedDevPorts {
 				if len(origin) >= len(port) && origin[len(origin)-len(port):] == port {
 					return true
 				}
 			}
-			// Allow port 8070 from any origin (for production/network access)
-			if len(origin) >= 6 && origin[len(origin)-5:] == ":8070" {
-				return true
-			}
+			
 			// Allow localhost without port (same origin)
 			if origin == "http://localhost" || origin == "https://localhost" {
 				return true
 			}
+			
+			// Allow 127.0.0.1 variants
+			if origin == "http://127.0.0.1" || origin == "https://127.0.0.1" {
+				return true
+			}
+			
 			return false
 		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 	}))

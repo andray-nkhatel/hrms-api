@@ -56,10 +56,10 @@ func main() {
 	// Setup routes
 	r := routes.SetupRoutes()
 
-	// Start server
-	port := ":" + config.AppConfig.Port
-	log.Printf("Server starting on port %s", port)
-	if err := r.Run(port); err != nil {
+	// Start server - bind to all interfaces (0.0.0.0) to allow network access
+	address := "0.0.0.0:" + config.AppConfig.Port
+	log.Printf("Server starting on %s", address)
+	if err := r.Run(address); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}
 }
