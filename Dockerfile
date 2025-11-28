@@ -21,12 +21,17 @@ ENV NODE_ENV=production
 RUN npm run build
 
 # Stage 2: Build Go API
-FROM golang:1.22-alpine AS api-builder
+# Use latest Go version to support go.mod requirements
+FROM golang:1.23-alpine AS api-builder
 
 WORKDIR /app
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates
+
+# Enable automatic Go toolchain download if required version is not available
+# This allows Go to download the required version specified in go.mod
+ENV GOTOOLCHAIN=auto
 
 # Copy go mod files
 COPY hrms-api/go.mod hrms-api/go.sum ./
