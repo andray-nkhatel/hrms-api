@@ -35,7 +35,7 @@ func LoadConfig() error {
 		JWTSecret:         getEnv("JWT_SECRET", "change-this-secret-key-in-production"),
 		JWTExpirationHours: getEnvAsInt("JWT_EXPIRATION_HOURS", 24),
 		Port:              getEnv("PORT", "8070"),
-		GinMode:           getEnv("GIN_MODE", "debug"),
+		GinMode:           getEnv("GIN_MODE", "release"),
 	}
 
 	return nil

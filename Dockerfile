@@ -21,7 +21,7 @@ ENV NODE_ENV=production
 RUN npm run build
 
 # Stage 2: Build Go API
-FROM golang:1.21-alpine AS api-builder
+FROM golang:1.22-alpine AS api-builder
 
 WORKDIR /app
 
@@ -35,7 +35,7 @@ COPY hrms-api/go.mod hrms-api/go.sum ./
 RUN go mod download
 
 # Copy source code
-COPY hrms-api/ ./
+COPY hrms-api/ ./ 
 
 # Copy built client files to static directory
 COPY --from=client-builder /app/client/dist ./static

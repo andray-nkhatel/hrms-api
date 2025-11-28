@@ -5,7 +5,9 @@ import (
 	"hrms-api/middleware"
 	"hrms-api/models"
 	"net/http"
+	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -80,22 +82,42 @@ func SetupRoutes() *gin.Engine {
 	// Serve static files from static directory (built Vue app)
 	staticDir := "./static"
 	if _, err := filepath.Abs(staticDir); err == nil {
-		// Serve static assets
-		r.Static("/assets", filepath.Join(staticDir, "assets"))
-		r.StaticFile("/favicon.ico", filepath.Join(staticDir, "favicon.ico"))
+		// Check if static directory exists
+		if _, err := os.Stat(staticDir); err == nil {
+			// Serve static assets
+			r.Static("/assets", filepath.Join(staticDir, "assets"))
+			r.StaticFile("/favicon.ico", filepath.Join(staticDir, "favicon.ico"))
 
-		// Serve index.html for all non-API routes (SPA routing)
-		r.NoRoute(func(c *gin.Context) {
-			// Don't serve index.html for API routes
-			if !filepath.HasPrefix(c.Request.URL.Path, "/api") &&
-				!filepath.HasPrefix(c.Request.URL.Path, "/auth") &&
-				!filepath.HasPrefix(c.Request.URL.Path, "/swagger") &&
-				c.Request.URL.Path != "/health" {
-				c.File(filepath.Join(staticDir, "index.html"))
-			} else {
-				c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
-			}
-		})
+			// Serve index.html for root path
+			r.GET("/", func(c *gin.Context) {
+				indexPath := filepath.Join(staticDir, "index.html")
+				if _, err := os.Stat(indexPath); err == nil {
+					c.File(indexPath)
+				} else {
+					c.JSON(http.StatusNotFound, gin.H{"error": "Frontend not built. Please build the client first."})
+				}
+			})
+
+			// Serve index.html for all non-API routes (SPA routing)
+			r.NoRoute(func(c *gin.Context) {
+				path := c.Request.URL.Path
+				// Don't serve index.html for API routes
+				if !strings.HasPrefix(path, "/api") &&
+					!strings.HasPrefix(path, "/auth") &&
+					!strings.HasPrefix(path, "/swagger") &&
+					path != "/health" &&
+					path != "/" {
+					indexPath := filepath.Join(staticDir, "index.html")
+					if _, err := os.Stat(indexPath); err == nil {
+						c.File(indexPath)
+					} else {
+						c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
+					}
+				} else {
+					c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
+				}
+			})
+		}
 	}
 
 	// Public routes
