@@ -1,4 +1,4 @@
-.PHONY: run build test clean docker-up docker-down migrate seed swagger
+.PHONY: run build test clean docker-up docker-down migrate seed swagger docker-build docker-up-prod docker-down-prod docker-logs docker-restart
 
 # Run the application
 run:
@@ -24,11 +24,11 @@ test-coverage:
 clean:
 	rm -rf bin/
 
-# Start PostgreSQL container
+# Start PostgreSQL container (development)
 docker-up:
 	docker-compose up -d
 
-# Stop PostgreSQL container
+# Stop PostgreSQL container (development)
 docker-down:
 	docker-compose down
 
@@ -57,3 +57,78 @@ lint:
 		echo "golangci-lint not installed. Install it from https://golangci-lint.run/"; \
 	fi
 
+# Docker Production Commands
+
+# Build Docker image
+docker-build:
+	docker-compose -f docker-compose.prod.yml build
+
+# Start production services
+docker-up-prod:
+	docker-compose -f docker-compose.prod.yml up -d
+
+# Stop production services
+docker-down-prod:
+	docker-compose -f docker-compose.prod.yml down
+
+# View production logs
+docker-logs:
+	docker-compose -f docker-compose.prod.yml logs -f
+
+# Restart production services
+docker-restart:
+	docker-compose -f docker-compose.prod.yml restart
+
+# Rebuild and restart production services
+docker-rebuild:
+	docker-compose -f docker-compose.prod.yml up -d --build
+
+# Stop and remove volumes (⚠️ deletes database)
+docker-clean:
+	docker-compose -f docker-compose.prod.yml down -v
+
+# Show production service status
+docker-ps:
+	docker-compose -f docker-compose.prod.yml ps
+
+# Quick start (uses startup script)
+docker-start:
+	./docker-start.sh
+
+# Docker Production Commands
+
+# Build Docker image
+docker-build:
+	docker-compose -f docker-compose.prod.yml build
+
+# Start production services
+docker-up-prod:
+	docker-compose -f docker-compose.prod.yml up -d
+
+# Stop production services
+docker-down-prod:
+	docker-compose -f docker-compose.prod.yml down
+
+# View production logs
+docker-logs:
+	docker-compose -f docker-compose.prod.yml logs -f
+
+# Restart production services
+docker-restart:
+	docker-compose -f docker-compose.prod.yml restart
+
+# Rebuild and restart production services
+docker-rebuild:
+	docker-compose -f docker-compose.prod.yml up -d --build
+
+# Stop and remove volumes (⚠️ deletes database)
+docker-clean:
+	docker-compose -f docker-compose.prod.yml down -v
+
+# Show production service status
+docker-ps:
+	docker-compose -f docker-compose.prod.yml ps
+
+# Quick start (uses startup script)
+docker-start:
+	./docker-start.sh

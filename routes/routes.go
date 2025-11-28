@@ -101,6 +101,10 @@ func SetupRoutes() *gin.Engine {
 	// Public routes
 	auth := r.Group("/auth")
 	{
+		// GET handler for /auth/login to prevent 404 when browser navigates to the route
+		auth.GET("/login", func(c *gin.Context) {
+			c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "Use POST method to login"})
+		})
 		auth.POST("/login", handlers.Login)            // Employee/Manager login with NRC
 		auth.POST("/admin/login", handlers.AdminLogin) // Admin login with username
 		auth.POST("/register", handlers.Register)

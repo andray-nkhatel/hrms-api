@@ -21,7 +21,7 @@ ENV NODE_ENV=production
 RUN npm run build
 
 # Stage 2: Build Go API
-FROM golang:1.24-alpine AS api-builder
+FROM golang:1.21-alpine AS api-builder
 
 WORKDIR /app
 
@@ -48,8 +48,8 @@ FROM alpine:latest
 
 WORKDIR /app
 
-# Install ca-certificates for HTTPS requests
-RUN apk --no-cache add ca-certificates tzdata
+# Install ca-certificates and wget for health checks
+RUN apk --no-cache add ca-certificates tzdata wget
 
 # Copy binary and static files from builder
 COPY --from=api-builder /app/hrms-api .

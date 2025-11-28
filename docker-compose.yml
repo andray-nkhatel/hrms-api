@@ -1,7 +1,9 @@
+
+
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: hrms_postgres
+    container_name: hrms-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -15,36 +17,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - hrms-network
-
-  hrms-api:
-    build:
-      context: ..
-      dockerfile: hrms-api/Dockerfile
-    container_name: hrms_api
-    ports:
-      - "8070:8070"
-    environment:
-      PORT: "8070"
-      DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: hrms_db
-      JWT_SECRET: ${JWT_SECRET:-change-this-secret-key-in-production}
-      JWT_EXPIRATION_HOURS: ${JWT_EXPIRATION_HOURS:-24}
-      GIN_MODE: ${GIN_MODE:-release}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - hrms-network
-    restart: unless-stopped
-
-networks:
-  hrms-network:
-    driver: bridge
 
 volumes:
   postgres_data:

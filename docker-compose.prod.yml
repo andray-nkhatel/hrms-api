@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: hrms-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-hrms_db}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hrms-network
+
+  # HRMS API + Frontend (combined)
+  hrms-api:
+    build:
+      context: ..
+      dockerfile: hrms-api/Dockerfile
+    container_name: hrms-api
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8070}:8070"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-hrms_db}
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-key-in-production}
+      JWT_EXPIRATION_HOURS: ${JWT_EXPIRATION_HOURS:-24}
+      PORT: 8070
+      GIN_MODE: release
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - hrms-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8070/health", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  hrms-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+
