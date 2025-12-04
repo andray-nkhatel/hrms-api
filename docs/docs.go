@@ -85,6 +85,155 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/audit-logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get audit logs with optional filtering by entity type, entity ID, or performed by",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Audit"
+                ],
+                "summary": "Get audit logs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Entity type filter",
+                        "name": "entity_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Entity ID filter",
+                        "name": "entity_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Performed by user ID filter",
+                        "name": "performed_by",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.AuditLog"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/compliance/requirements": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get list of all active compliance requirements",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Compliance"
+                ],
+                "summary": "Get all compliance requirements",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.ComplianceRequirement"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new compliance requirement (Manager/Admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Compliance"
+                ],
+                "summary": "Create compliance requirement",
+                "parameters": [
+                    {
+                        "description": "Compliance requirement data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ComplianceRequirement"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.ComplianceRequirement"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/employees": {
             "get": {
                 "security": [
@@ -179,6 +328,98 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "NRC or email already exists",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/employees/bulk": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Upload multiple employees from a CSV file (Admin only)",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Employees"
+                ],
+                "summary": "Bulk upload employees",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "CSV file with employee data",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.BulkUploadResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/employees/template": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Download a CSV template for bulk employee upload (Admin only)",
+                "produces": [
+                    "text/csv"
+                ],
+                "tags": [
+                    "Admin - Employees"
+                ],
+                "summary": "Download employee CSV template",
+                "responses": {
+                    "200": {
+                        "description": "CSV template file",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
@@ -345,6 +586,1619 @@ const docTemplate = `{
                         "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/employees/{id}/audit-logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get audit logs related to a specific employee",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Audit"
+                ],
+                "summary": "Get employee audit logs",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.AuditLog"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/employees/{id}/compliance": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all compliance records for an employee",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Compliance"
+                ],
+                "summary": "Get employee compliance records",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.ComplianceRecord"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new compliance record for an employee (Manager/Admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Compliance"
+                ],
+                "summary": "Create compliance record",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Compliance record data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ComplianceRecord"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.ComplianceRecord"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/employees/{id}/documents": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all documents for an employee",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Documents"
+                ],
+                "summary": "Get employee documents",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Document"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Upload a file and create a new document record for an employee. Accepts multipart/form-data with file upload.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Documents"
+                ],
+                "summary": "Upload and create document",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Document file to upload",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Document type (id, contract, resume, certificate, license, performance, disciplinary, compliance, other)",
+                        "name": "document_type",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Document title",
+                        "name": "title",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Document description",
+                        "name": "description",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Issue date (YYYY-MM-DD)",
+                        "name": "issue_date",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Expiry date (YYYY-MM-DD)",
+                        "name": "expiry_date",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Is document confidential",
+                        "name": "is_confidential",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Document tags (comma-separated)",
+                        "name": "tags",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.Document"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "File too large",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported file type",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/employees/{id}/documents/{doc_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete a document record and its associated file",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Documents"
+                ],
+                "summary": "Delete document",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Document ID",
+                        "name": "doc_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MessageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/employees/{id}/documents/{doc_id}/download": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Download the actual file for a document",
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "Core HR - Documents"
+                ],
+                "summary": "Download document file",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Document ID",
+                        "name": "doc_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/employees/{id}/employment": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get employment details for an employee",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Employment"
+                ],
+                "summary": "Get employee employment details",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.EmploymentDetails"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create or update employment details for an employee",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Employment"
+                ],
+                "summary": "Create or update employment details",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Employment details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.EmploymentDetails"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.EmploymentDetails"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.EmploymentDetails"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/employees/{id}/employment/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get employment history for an employee",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Employment"
+                ],
+                "summary": "Get employee employment history",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.EmploymentHistory"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/employees/{id}/identity": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get identity information for an employee",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Identity"
+                ],
+                "summary": "Get employee identity information",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.IdentityInformation"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create or update identity information for an employee",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Identity"
+                ],
+                "summary": "Create or update identity information",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Identity information",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.IdentityInformation"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.IdentityInformation"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.IdentityInformation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/employees/{id}/lifecycle": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all lifecycle events for an employee",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Lifecycle"
+                ],
+                "summary": "Get employee lifecycle events",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.WorkLifecycleEvent"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new lifecycle event for an employee (Manager/Admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Lifecycle"
+                ],
+                "summary": "Create lifecycle event",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Lifecycle event data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.WorkLifecycleEvent"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.WorkLifecycleEvent"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/employees/{id}/offboarding": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get offboarding process for an employee",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Offboarding"
+                ],
+                "summary": "Get employee offboarding process",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.OffboardingProcess"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new offboarding process for an employee (Manager/Admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Offboarding"
+                ],
+                "summary": "Create offboarding process",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Offboarding process data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.OffboardingProcess"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.OffboardingProcess"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/employees/{id}/onboarding": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get onboarding process for an employee",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Onboarding"
+                ],
+                "summary": "Get employee onboarding process",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.OnboardingProcess"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new onboarding process for an employee (Manager/Admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Onboarding"
+                ],
+                "summary": "Create onboarding process",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Onboarding process data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.OnboardingProcess"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.OnboardingProcess"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/employees/{id}/positions": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Assign a position to an employee (Manager/Admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Positions"
+                ],
+                "summary": "Assign position to employee",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Position assignment",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.PositionAssignment"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.PositionAssignment"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/hr/employees/annual-leave-balances": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get annual leave balances for all employees with filtering options (HR/Admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "HR - Leave Management"
+                ],
+                "summary": "Get all employees leave balances",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by department",
+                        "name": "department",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by employment status (active, on_leave, etc.)",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/handlers.AnnualLeaveBalanceResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/hr/employees/annual-leave-balances/export": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Export annual leave balances for all employees to Excel or PDF format (Admin only)",
+                "produces": [
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/pdf"
+                ],
+                "tags": [
+                    "HR - Leave Management"
+                ],
+                "summary": "Export annual leave balances",
+                "parameters": [
+                    {
+                        "enum": [
+                            "excel",
+                            "pdf"
+                        ],
+                        "type": "string",
+                        "description": "Export format (excel or pdf)",
+                        "name": "format",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by department",
+                        "name": "department",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by employment status",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Excel or PDF file",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/hr/employees/{id}/annual-leave-balance": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get detailed annual leave balance including accruals for an employee (HR/Admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "HR - Leave Management"
+                ],
+                "summary": "Get annual leave balance details",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.AnnualLeaveBalanceResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/hr/employees/{id}/annual-leave-balance/accrual": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Manually add an accrual record for a specific month (Admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "HR - Leave Management"
+                ],
+                "summary": "Add manual accrual",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Manual accrual data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ManualAccrualRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.LeaveAccrual"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/hr/employees/{id}/annual-leave-balance/adjust": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Manually adjust an employee's annual leave balance (add or subtract days) (Admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "HR - Leave Management"
+                ],
+                "summary": "Adjust leave balance",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Employee ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Balance adjustment",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.AdjustLeaveBalanceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.AnnualLeaveBalanceResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/hr/leaves/calendar": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get leave calendar showing all approved leaves in a date range (HR/Admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "HR - Leave Management"
+                ],
+                "summary": "Get leave calendar",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by department",
+                        "name": "department",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/handlers.LeaveCalendarResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/hr/leaves/department-report": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get leave statistics aggregated by department (HR/Admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "HR - Leave Management"
+                ],
+                "summary": "Get department leave report",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/handlers.DepartmentLeaveReport"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/hr/leaves/process-accruals": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Process leave accruals for all employees for a specific month (Admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "HR - Leave Management"
+                ],
+                "summary": "Process monthly accruals",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Month to process (YYYY-MM)",
+                        "name": "month",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/hr/leaves/upcoming": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all upcoming approved leaves within specified days (HR/Admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "HR - Leave Management"
+                ],
+                "summary": "Get upcoming leaves",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Number of days to look ahead",
+                        "name": "days",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Leave"
+                            }
                         }
                     },
                     "401": {
@@ -798,21 +2652,76 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/leaves/{id}/reject": {
-            "put": {
+        "/api/leaves/{id}/audit": {
+            "get": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Reject a pending leave request (Manager/Admin only)",
+                "description": "Get audit history for a leave request (Manager/Admin only)",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Manager"
                 ],
-                "summary": "Reject leave",
+                "summary": "Get leave audit trail",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Leave ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.LeaveAudit"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/leaves/{id}/cancel": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Cancel own pending or approved leave request",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Leaves"
+                ],
+                "summary": "Cancel leave",
                 "parameters": [
                     {
                         "type": "integer",
@@ -849,6 +2758,291 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/leaves/{id}/reject": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Reject a pending leave request with reason (Manager/Admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Manager"
+                ],
+                "summary": "Reject leave",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Leave ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Rejection reason",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.RejectLeaveRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Leave"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/positions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get list of all active positions",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Positions"
+                ],
+                "summary": "Get all positions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Position"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new position (Manager/Admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Positions"
+                ],
+                "summary": "Create position",
+                "parameters": [
+                    {
+                        "description": "Position data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Position"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.Position"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/positions/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get a specific position by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Positions"
+                ],
+                "summary": "Get position by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Position ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Position"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update an existing position (Manager/Admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Core HR - Positions"
+                ],
+                "summary": "Update position",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Position ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Position data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Position"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Position"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
@@ -996,6 +3190,27 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "handlers.AdjustLeaveBalanceRequest": {
+            "type": "object",
+            "required": [
+                "days",
+                "reason"
+            ],
+            "properties": {
+                "adjustment_date": {
+                    "type": "string",
+                    "example": "2025-12-01"
+                },
+                "days": {
+                    "type": "number",
+                    "example": 2.5
+                },
+                "reason": {
+                    "type": "string",
+                    "example": "Manual adjustment for carryover"
+                }
+            }
+        },
         "handlers.AdminLoginRequest": {
             "type": "object",
             "required": [
@@ -1010,6 +3225,41 @@ const docTemplate = `{
                 "username": {
                     "type": "string",
                     "example": "admin"
+                }
+            }
+        },
+        "handlers.AnnualLeaveBalanceResponse": {
+            "type": "object",
+            "properties": {
+                "accruals": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.LeaveAccrualResponse"
+                    }
+                },
+                "current_balance": {
+                    "type": "number",
+                    "example": 19
+                },
+                "employee_id": {
+                    "type": "integer"
+                },
+                "employee_name": {
+                    "type": "string"
+                },
+                "pending_leaves": {
+                    "type": "integer"
+                },
+                "total_accrued": {
+                    "type": "number",
+                    "example": 24
+                },
+                "total_used": {
+                    "type": "number",
+                    "example": 5
+                },
+                "upcoming_leaves": {
+                    "type": "integer"
                 }
             }
         },
@@ -1048,6 +3298,32 @@ const docTemplate = `{
                 "token": {
                     "type": "string",
                     "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                }
+            }
+        },
+        "handlers.BulkUploadResponse": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "Row 3: NRC already exists"
+                    ]
+                },
+                "failed": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "success": {
+                    "type": "integer",
+                    "example": 8
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 10
                 }
             }
         },
@@ -1152,12 +3428,65 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.DepartmentLeaveReport": {
+            "type": "object",
+            "properties": {
+                "department": {
+                    "type": "string"
+                },
+                "pending_requests": {
+                    "type": "integer"
+                },
+                "total_accrued": {
+                    "type": "number"
+                },
+                "total_balance": {
+                    "type": "number"
+                },
+                "total_employees": {
+                    "type": "integer"
+                },
+                "total_used": {
+                    "type": "number"
+                },
+                "upcoming_leaves": {
+                    "type": "integer"
+                }
+            }
+        },
         "handlers.ErrorResponse": {
             "type": "object",
             "properties": {
                 "error": {
                     "type": "string",
                     "example": "Invalid credentials"
+                }
+            }
+        },
+        "handlers.LeaveAccrualResponse": {
+            "type": "object",
+            "properties": {
+                "days_accrued": {
+                    "type": "number",
+                    "example": 2
+                },
+                "days_balance": {
+                    "type": "number",
+                    "example": 0.5
+                },
+                "days_used": {
+                    "type": "number",
+                    "example": 1.5
+                },
+                "is_processed": {
+                    "type": "boolean"
+                },
+                "month": {
+                    "type": "string",
+                    "example": "2025-01"
+                },
+                "processed_at": {
+                    "type": "string"
                 }
             }
         },
@@ -1186,6 +3515,30 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.LeaveCalendarResponse": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string",
+                    "example": "2025-12-15"
+                },
+                "department": {
+                    "type": "string"
+                },
+                "employee_id": {
+                    "type": "integer"
+                },
+                "employee_name": {
+                    "type": "string"
+                },
+                "leave_type": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.LoginRequest": {
             "type": "object",
             "required": [
@@ -1203,6 +3556,29 @@ const docTemplate = `{
                 "username": {
                     "type": "string",
                     "example": "admin"
+                }
+            }
+        },
+        "handlers.ManualAccrualRequest": {
+            "type": "object",
+            "required": [
+                "days",
+                "month",
+                "reason"
+            ],
+            "properties": {
+                "days": {
+                    "type": "number",
+                    "example": 2
+                },
+                "month": {
+                    "description": "YYYY-MM format",
+                    "type": "string",
+                    "example": "2025-12"
+                },
+                "reason": {
+                    "type": "string",
+                    "example": "Manual accrual adjustment"
                 }
             }
         },
@@ -1260,6 +3636,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.RejectLeaveRequest": {
+            "type": "object",
+            "required": [
+                "reason"
+            ],
+            "properties": {
+                "reason": {
+                    "type": "string",
+                    "example": "Insufficient staffing during requested period"
+                }
+            }
+        },
         "handlers.UpdateEmployeeRequest": {
             "type": "object",
             "properties": {
@@ -1289,17 +3677,373 @@ const docTemplate = `{
                 }
             }
         },
+        "models.AuditAction": {
+            "type": "string",
+            "enum": [
+                "CREATE",
+                "APPROVE",
+                "REJECT",
+                "CANCEL",
+                "UPDATE",
+                "DELETE"
+            ],
+            "x-enum-varnames": [
+                "AuditActionCreate",
+                "AuditActionApprove",
+                "AuditActionReject",
+                "AuditActionCancel",
+                "AuditActionUpdate",
+                "AuditActionDelete"
+            ]
+        },
+        "models.AuditEntityType": {
+            "type": "string",
+            "enum": [
+                "employee",
+                "identity",
+                "employment",
+                "position",
+                "document",
+                "compliance",
+                "onboarding",
+                "offboarding",
+                "lifecycle",
+                "leave",
+                "leave_type"
+            ],
+            "x-enum-varnames": [
+                "AuditEntityEmployee",
+                "AuditEntityIdentity",
+                "AuditEntityEmployment",
+                "AuditEntityPosition",
+                "AuditEntityDocument",
+                "AuditEntityCompliance",
+                "AuditEntityOnboarding",
+                "AuditEntityOffboarding",
+                "AuditEntityLifecycle",
+                "AuditEntityLeave",
+                "AuditEntityLeaveType"
+            ]
+        },
+        "models.AuditLog": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "$ref": "#/definitions/models.AuditAction"
+                },
+                "changes": {
+                    "description": "JSON representation of what changed",
+                    "type": "string"
+                },
+                "comment": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "entity_id": {
+                    "type": "integer"
+                },
+                "entity_type": {
+                    "$ref": "#/definitions/models.AuditEntityType"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "ip_address": {
+                    "type": "string"
+                },
+                "new_values": {
+                    "description": "JSON representation of new values",
+                    "type": "string"
+                },
+                "old_values": {
+                    "description": "JSON representation of old values",
+                    "type": "string"
+                },
+                "performed_by": {
+                    "type": "integer"
+                },
+                "performer": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "request_method": {
+                    "type": "string"
+                },
+                "request_path": {
+                    "type": "string"
+                },
+                "user_agent": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ComplianceRecord": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "document": {
+                    "$ref": "#/definitions/models.Document"
+                },
+                "document_id": {
+                    "type": "integer"
+                },
+                "employee": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "employee_id": {
+                    "type": "integer"
+                },
+                "expiry_date": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "issue_date": {
+                    "type": "string"
+                },
+                "last_verified_date": {
+                    "type": "string"
+                },
+                "non_compliance_reason": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "requirement": {
+                    "$ref": "#/definitions/models.ComplianceRequirement"
+                },
+                "requirement_id": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.ComplianceStatus"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "verified_by": {
+                    "type": "integer"
+                },
+                "verifier": {
+                    "$ref": "#/definitions/models.Employee"
+                }
+            }
+        },
+        "models.ComplianceRequirement": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_mandatory": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "records": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ComplianceRecord"
+                    }
+                },
+                "reminder_days": {
+                    "description": "days before expiry to send reminder",
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "validity_period": {
+                    "description": "in days",
+                    "type": "integer"
+                }
+            }
+        },
+        "models.ComplianceStatus": {
+            "type": "string",
+            "enum": [
+                "compliant",
+                "non_compliant",
+                "pending",
+                "expired"
+            ],
+            "x-enum-varnames": [
+                "ComplianceStatusCompliant",
+                "ComplianceStatusNonCompliant",
+                "ComplianceStatusPending",
+                "ComplianceStatusExpired"
+            ]
+        },
+        "models.Document": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "document_type": {
+                    "$ref": "#/definitions/models.DocumentType"
+                },
+                "employee": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "employee_id": {
+                    "type": "integer"
+                },
+                "expiry_date": {
+                    "type": "string"
+                },
+                "file_name": {
+                    "type": "string"
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_confidential": {
+                    "type": "boolean"
+                },
+                "issue_date": {
+                    "type": "string"
+                },
+                "mime_type": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.DocumentStatus"
+                },
+                "tags": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "uploaded_by": {
+                    "type": "integer"
+                },
+                "uploader": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "verified_at": {
+                    "type": "string"
+                },
+                "verified_by": {
+                    "type": "integer"
+                },
+                "verifier": {
+                    "$ref": "#/definitions/models.Employee"
+                }
+            }
+        },
+        "models.DocumentStatus": {
+            "type": "string",
+            "enum": [
+                "active",
+                "expired",
+                "pending",
+                "archived"
+            ],
+            "x-enum-varnames": [
+                "DocumentStatusActive",
+                "DocumentStatusExpired",
+                "DocumentStatusPending",
+                "DocumentStatusArchived"
+            ]
+        },
+        "models.DocumentType": {
+            "type": "string",
+            "enum": [
+                "id",
+                "contract",
+                "resume",
+                "certificate",
+                "license",
+                "performance",
+                "disciplinary",
+                "compliance",
+                "other"
+            ],
+            "x-enum-varnames": [
+                "DocumentTypeID",
+                "DocumentTypeContract",
+                "DocumentTypeResume",
+                "DocumentTypeCertificate",
+                "DocumentTypeLicense",
+                "DocumentTypePerformance",
+                "DocumentTypeDisciplinary",
+                "DocumentTypeCompliance",
+                "DocumentTypeOther"
+            ]
+        },
         "models.Employee": {
             "type": "object",
             "properties": {
+                "audit_logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.AuditLog"
+                    }
+                },
+                "compliance_records": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ComplianceRecord"
+                    }
+                },
                 "created_at": {
                     "type": "string"
                 },
                 "department": {
                     "type": "string"
                 },
+                "documents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Document"
+                    }
+                },
                 "email": {
                     "type": "string"
+                },
+                "employment": {
+                    "$ref": "#/definitions/models.EmploymentDetails"
+                },
+                "employment_history": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.EmploymentHistory"
+                    }
                 },
                 "firstname": {
                     "type": "string"
@@ -1307,17 +4051,45 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "identity": {
+                    "$ref": "#/definitions/models.IdentityInformation"
+                },
                 "lastname": {
                     "type": "string"
                 },
                 "leaves": {
+                    "description": "Relationships",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/models.Leave"
                     }
                 },
+                "lifecycle_events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.WorkLifecycleEvent"
+                    }
+                },
                 "nrc": {
                     "type": "string"
+                },
+                "offboarding_process": {
+                    "$ref": "#/definitions/models.OffboardingProcess"
+                },
+                "onboarding_process": {
+                    "$ref": "#/definitions/models.OnboardingProcess"
+                },
+                "position": {
+                    "$ref": "#/definitions/models.Position"
+                },
+                "position_assignments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.PositionAssignment"
+                    }
+                },
+                "position_id": {
+                    "type": "integer"
                 },
                 "role": {
                     "$ref": "#/definitions/models.Role"
@@ -1330,9 +4102,236 @@ const docTemplate = `{
                 }
             }
         },
+        "models.EmploymentDetails": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "employee": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "employee_id": {
+                    "type": "integer"
+                },
+                "employee_number": {
+                    "type": "string"
+                },
+                "employment_status": {
+                    "$ref": "#/definitions/models.EmploymentStatus"
+                },
+                "employment_type": {
+                    "$ref": "#/definitions/models.EmploymentType"
+                },
+                "end_date": {
+                    "type": "string"
+                },
+                "hire_date": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "manager": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "manager_id": {
+                    "type": "integer"
+                },
+                "notice_period": {
+                    "description": "in days",
+                    "type": "integer"
+                },
+                "probation_end_date": {
+                    "type": "string"
+                },
+                "probation_status": {
+                    "type": "string"
+                },
+                "start_date": {
+                    "type": "string"
+                },
+                "termination_date": {
+                    "type": "string"
+                },
+                "termination_reason": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "work_location": {
+                    "type": "string"
+                },
+                "work_schedule": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.EmploymentHistory": {
+            "type": "object",
+            "properties": {
+                "change_date": {
+                    "type": "string"
+                },
+                "change_reason": {
+                    "type": "string"
+                },
+                "changed_by": {
+                    "type": "integer"
+                },
+                "changer": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "employee": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "employee_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "new_department": {
+                    "type": "string"
+                },
+                "new_position": {
+                    "type": "string"
+                },
+                "new_status": {
+                    "$ref": "#/definitions/models.EmploymentStatus"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "previous_department": {
+                    "type": "string"
+                },
+                "previous_position": {
+                    "type": "string"
+                },
+                "previous_status": {
+                    "$ref": "#/definitions/models.EmploymentStatus"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.EmploymentStatus": {
+            "type": "string",
+            "enum": [
+                "active",
+                "on_leave",
+                "suspended",
+                "terminated",
+                "resigned"
+            ],
+            "x-enum-varnames": [
+                "EmploymentStatusActive",
+                "EmploymentStatusOnLeave",
+                "EmploymentStatusSuspended",
+                "EmploymentStatusTerminated",
+                "EmploymentStatusResigned"
+            ]
+        },
+        "models.EmploymentType": {
+            "type": "string",
+            "enum": [
+                "full_time",
+                "part_time",
+                "contract",
+                "internship",
+                "consultant"
+            ],
+            "x-enum-varnames": [
+                "EmploymentTypeFullTime",
+                "EmploymentTypePartTime",
+                "EmploymentTypeContract",
+                "EmploymentTypeInternship",
+                "EmploymentTypeConsultant"
+            ]
+        },
+        "models.IdentityInformation": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "blood_group": {
+                    "type": "string"
+                },
+                "city": {
+                    "type": "string"
+                },
+                "country": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "date_of_birth": {
+                    "type": "string"
+                },
+                "emergency_contact": {
+                    "type": "string"
+                },
+                "emergency_phone": {
+                    "type": "string"
+                },
+                "emergency_relation": {
+                    "type": "string"
+                },
+                "employee": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "employee_id": {
+                    "type": "integer"
+                },
+                "gender": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "marital_status": {
+                    "type": "string"
+                },
+                "mobile_number": {
+                    "type": "string"
+                },
+                "nationality": {
+                    "type": "string"
+                },
+                "phone_number": {
+                    "type": "string"
+                },
+                "postal_code": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "models.Leave": {
             "type": "object",
             "properties": {
+                "approved_at": {
+                    "type": "string"
+                },
+                "approved_by": {
+                    "type": "integer"
+                },
+                "approver": {
+                    "$ref": "#/definitions/models.Employee"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -1357,6 +4356,9 @@ const docTemplate = `{
                 "reason": {
                     "type": "string"
                 },
+                "rejection_reason": {
+                    "type": "string"
+                },
                 "start_date": {
                     "type": "string"
                 },
@@ -1368,17 +4370,106 @@ const docTemplate = `{
                 }
             }
         },
+        "models.LeaveAccrual": {
+            "type": "object",
+            "properties": {
+                "accrual_month": {
+                    "description": "First day of the month",
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "days_accrued": {
+                    "description": "Can be fractional (e.g., 2.0)",
+                    "type": "number"
+                },
+                "days_balance": {
+                    "type": "number"
+                },
+                "days_used": {
+                    "type": "number"
+                },
+                "employee": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "employee_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_processed": {
+                    "type": "boolean"
+                },
+                "leave_type": {
+                    "$ref": "#/definitions/models.LeaveType"
+                },
+                "leave_type_id": {
+                    "type": "integer"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "processed_at": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.LeaveAudit": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "$ref": "#/definitions/models.AuditAction"
+                },
+                "comment": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "ip_address": {
+                    "type": "string"
+                },
+                "leave": {
+                    "$ref": "#/definitions/models.Leave"
+                },
+                "leave_id": {
+                    "type": "integer"
+                },
+                "new_status": {
+                    "type": "string"
+                },
+                "old_status": {
+                    "type": "string"
+                },
+                "performed_by": {
+                    "type": "integer"
+                },
+                "performer": {
+                    "$ref": "#/definitions/models.Employee"
+                }
+            }
+        },
         "models.LeaveStatus": {
             "type": "string",
             "enum": [
                 "Pending",
                 "Approved",
-                "Rejected"
+                "Rejected",
+                "Cancelled"
             ],
             "x-enum-varnames": [
                 "StatusPending",
                 "StatusApproved",
-                "StatusRejected"
+                "StatusRejected",
+                "StatusCancelled"
             ]
         },
         "models.LeaveType": {
@@ -1407,6 +4498,381 @@ const docTemplate = `{
                 }
             }
         },
+        "models.LifecycleEventType": {
+            "type": "string",
+            "enum": [
+                "hired",
+                "onboarded",
+                "promoted",
+                "transferred",
+                "demoted",
+                "resigned",
+                "terminated",
+                "retired",
+                "offboarded",
+                "status_change"
+            ],
+            "x-enum-varnames": [
+                "LifecycleEventHired",
+                "LifecycleEventOnboarded",
+                "LifecycleEventPromoted",
+                "LifecycleEventTransferred",
+                "LifecycleEventDemoted",
+                "LifecycleEventResigned",
+                "LifecycleEventTerminated",
+                "LifecycleEventRetired",
+                "LifecycleEventOffboarded",
+                "LifecycleEventStatusChange"
+            ]
+        },
+        "models.OffboardingProcess": {
+            "type": "object",
+            "properties": {
+                "actual_end_date": {
+                    "type": "string"
+                },
+                "assigned_to": {
+                    "type": "integer"
+                },
+                "assignee": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "employee": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "employee_id": {
+                    "type": "integer"
+                },
+                "expected_end_date": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "initiated_by": {
+                    "type": "integer"
+                },
+                "initiator": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "start_date": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.OnboardingStatus"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.OffboardingTask"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.OffboardingTask": {
+            "type": "object",
+            "properties": {
+                "assigned_to": {
+                    "type": "integer"
+                },
+                "assignee": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "completed_by": {
+                    "type": "integer"
+                },
+                "completed_date": {
+                    "type": "string"
+                },
+                "completer": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "due_date": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_required": {
+                    "type": "boolean"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "offboarding_process": {
+                    "$ref": "#/definitions/models.OffboardingProcess"
+                },
+                "offboarding_process_id": {
+                    "type": "integer"
+                },
+                "order": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.OnboardingTaskStatus"
+                },
+                "task_name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.OnboardingProcess": {
+            "type": "object",
+            "properties": {
+                "actual_end_date": {
+                    "type": "string"
+                },
+                "assigned_to": {
+                    "type": "integer"
+                },
+                "assignee": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "employee": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "employee_id": {
+                    "type": "integer"
+                },
+                "expected_end_date": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "initiated_by": {
+                    "type": "integer"
+                },
+                "initiator": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "start_date": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.OnboardingStatus"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.OnboardingTask"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.OnboardingStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "in_progress",
+                "completed",
+                "cancelled"
+            ],
+            "x-enum-varnames": [
+                "OnboardingStatusPending",
+                "OnboardingStatusInProgress",
+                "OnboardingStatusCompleted",
+                "OnboardingStatusCancelled"
+            ]
+        },
+        "models.OnboardingTask": {
+            "type": "object",
+            "properties": {
+                "assigned_to": {
+                    "type": "integer"
+                },
+                "assignee": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "completed_by": {
+                    "type": "integer"
+                },
+                "completed_date": {
+                    "type": "string"
+                },
+                "completer": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "due_date": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_required": {
+                    "type": "boolean"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "onboarding_process": {
+                    "$ref": "#/definitions/models.OnboardingProcess"
+                },
+                "onboarding_process_id": {
+                    "type": "integer"
+                },
+                "order": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.OnboardingTaskStatus"
+                },
+                "task_name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.OnboardingTaskStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "in_progress",
+                "completed",
+                "skipped"
+            ],
+            "x-enum-varnames": [
+                "OnboardingTaskStatusPending",
+                "OnboardingTaskStatusInProgress",
+                "OnboardingTaskStatusCompleted",
+                "OnboardingTaskStatusSkipped"
+            ]
+        },
+        "models.Position": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "department": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "employees": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Employee"
+                    }
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "level": {
+                    "type": "string"
+                },
+                "max_salary": {
+                    "type": "number"
+                },
+                "min_salary": {
+                    "type": "number"
+                },
+                "reports_to": {
+                    "$ref": "#/definitions/models.Position"
+                },
+                "reports_to_position": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.PositionAssignment": {
+            "type": "object",
+            "properties": {
+                "assigned_by": {
+                    "type": "integer"
+                },
+                "assigner": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "assignment_notes": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "employee": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "employee_id": {
+                    "type": "integer"
+                },
+                "end_date": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_primary": {
+                    "type": "boolean"
+                },
+                "position": {
+                    "$ref": "#/definitions/models.Position"
+                },
+                "position_id": {
+                    "type": "integer"
+                },
+                "salary": {
+                    "type": "number"
+                },
+                "start_date": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "models.Role": {
             "type": "string",
             "enum": [
@@ -1419,6 +4885,68 @@ const docTemplate = `{
                 "RoleManager",
                 "RoleAdmin"
             ]
+        },
+        "models.WorkLifecycleEvent": {
+            "type": "object",
+            "properties": {
+                "approved_at": {
+                    "type": "string"
+                },
+                "approved_by": {
+                    "type": "integer"
+                },
+                "approver": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "completion_date": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "effective_date": {
+                    "type": "string"
+                },
+                "employee": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "employee_id": {
+                    "type": "integer"
+                },
+                "event_date": {
+                    "type": "string"
+                },
+                "event_type": {
+                    "$ref": "#/definitions/models.LifecycleEventType"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "initiated_by": {
+                    "type": "integer"
+                },
+                "initiator": {
+                    "$ref": "#/definitions/models.Employee"
+                },
+                "is_completed": {
+                    "type": "boolean"
+                },
+                "new_value": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "previous_value": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
         }
     },
     "securityDefinitions": {
@@ -1434,7 +4962,7 @@ const docTemplate = `{
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
-	Host:             "localhost:8080",
+	Host:             "localhost:8070",
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "HRMS Leave Management API",

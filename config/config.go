@@ -9,15 +9,17 @@ import (
 )
 
 type Config struct {
-	DBHost            string
-	DBPort            string
-	DBUser            string
-	DBPassword        string
-	DBName            string
-	JWTSecret         string
+	DBHost             string
+	DBPort             string
+	DBUser             string
+	DBPassword         string
+	DBName             string
+	JWTSecret          string
 	JWTExpirationHours int
-	Port              string
-	GinMode           string
+	Port               string
+	GinMode            string
+	DocumentsPath      string
+	MaxFileSize        int64 // in bytes
 }
 
 var AppConfig *Config
@@ -27,15 +29,17 @@ func LoadConfig() error {
 	_ = godotenv.Load()
 
 	AppConfig = &Config{
-		DBHost:            getEnv("DB_HOST", "localhost"),
-		DBPort:            getEnv("DB_PORT", "5432"),
-		DBUser:            getEnv("DB_USER", "postgres"),
-		DBPassword:        getEnv("DB_PASSWORD", "postgres"),
-		DBName:            getEnv("DB_NAME", "hrms_db"),
-		JWTSecret:         getEnv("JWT_SECRET", "change-this-secret-key-in-production"),
+		DBHost:             getEnv("DB_HOST", "localhost"),
+		DBPort:             getEnv("DB_PORT", "5432"),
+		DBUser:             getEnv("DB_USER", "postgres"),
+		DBPassword:         getEnv("DB_PASSWORD", "postgres"),
+		DBName:             getEnv("DB_NAME", "hrms_db"),
+		JWTSecret:          getEnv("JWT_SECRET", "change-this-secret-key-in-production"),
 		JWTExpirationHours: getEnvAsInt("JWT_EXPIRATION_HOURS", 24),
-		Port:              getEnv("PORT", "8070"),
-		GinMode:           getEnv("GIN_MODE", "release"),
+		Port:               getEnv("PORT", "8070"),
+		GinMode:            getEnv("GIN_MODE", "release"),
+		DocumentsPath:      getEnv("DOCUMENTS_PATH", "./uploads/documents"),
+		MaxFileSize:        int64(getEnvAsInt("MAX_FILE_SIZE_MB", 10)) * 1024 * 1024, // Default 10MB
 	}
 
 	return nil
@@ -64,4 +68,3 @@ func (c *Config) GetDSN() string {
 	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
 		c.DBHost, c.DBUser, c.DBPassword, c.DBName, c.DBPort)
 }
-

@@ -122,7 +122,9 @@ func AdminLogin(c *gin.Context) {
 		return
 	}
 
-	if !utils.CheckPasswordHash(req.Password, employee.PasswordHash) {
+	// Check password hash
+	passwordValid := utils.CheckPasswordHash(req.Password, employee.PasswordHash)
+	if !passwordValid {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
 	}

@@ -19,7 +19,12 @@ func SetupRoutes() *gin.Engine {
 	r := gin.Default()
 
 	// CORS configuration
-	// Allow requests from frontend on port 8070 (any IP/hostname) and common dev ports
+	// Check if we're in development mode for more permissive CORS
+	ginMode := os.Getenv("GIN_MODE")
+	isDevelopment := ginMode == "" || ginMode == "debug" || ginMode == "test"
+	// Allow explicit override via environment variable
+	corsAllowAll := os.Getenv("CORS_ALLOW_ALL") == "true" || os.Getenv("CORS_ALLOW_ALL") == "1"
+
 	r.Use(cors.New(cors.Config{
 		AllowOriginFunc: func(origin string) bool {
 			// Allow empty origin (same-origin requests, mobile apps, etc.)
@@ -27,6 +32,19 @@ func SetupRoutes() *gin.Engine {
 				return true
 			}
 
+			// Always allow requests from Swagger UI (same origin)
+			// Swagger is served from the same server, so same-origin requests have empty origin
+			// But we also allow explicit same-origin requests
+
+			// In development mode or if CORS_ALLOW_ALL is set, allow all http/https origins
+			if isDevelopment || corsAllowAll {
+				// Check if it's a valid http/https URL (must start with http:// or https://)
+				if strings.HasPrefix(origin, "http://") || strings.HasPrefix(origin, "https://") {
+					return true
+				}
+			}
+
+			// Production: More restrictive origin checking
 			// Allow if origin ends with :8070 (any IP or hostname)
 			// This handles http://192.168.1.100:8070, http://localhost:8070, etc.
 			if len(origin) >= 6 {
@@ -37,7 +55,7 @@ func SetupRoutes() *gin.Engine {
 			}
 
 			// Allow common development ports from any host
-			allowedDevPorts := []string{":5173", ":3000", ":8080", ":5174", ":5175"}
+			allowedDevPorts := []string{":5173", ":3000", ":8080", ":5174", ":5175", ":4200", ":5176"}
 			for _, port := range allowedDevPorts {
 				if len(origin) >= len(port) {
 					suffix := origin[len(origin)-len(port):]
@@ -69,10 +87,13 @@ func SetupRoutes() *gin.Engine {
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
+		MaxAge:           12 * 3600, // 12 hours
 	}))
 
 	// Swagger documentation
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	// Configure Swagger with CORS support
+	swaggerHandler := ginSwagger.WrapHandler(swaggerFiles.Handler, ginSwagger.DeepLinking(true), ginSwagger.DefaultModelsExpandDepth(-1))
+	r.GET("/swagger/*any", swaggerHandler)
 
 	// Health check
 	r.GET("/health", func(c *gin.Context) {
@@ -158,6 +179,24 @@ func SetupRoutes() *gin.Engine {
 			manager.GET("/leaves/:id/audit", handlers.GetLeaveAudit) // View audit trail
 		}
 
+		// HR Leave Management routes (Manager/Admin only)
+		hr := api.Group("/hr")
+		hr.Use(middleware.RequireRole(models.RoleManager, models.RoleAdmin))
+		{
+			// View endpoints
+			hr.GET("/employees/annual-leave-balances", handlers.GetAllEmployeesLeaveBalances)
+			hr.GET("/employees/annual-leave-balances/export", handlers.ExportAnnualLeaveBalances)
+			hr.GET("/employees/:id/annual-leave-balance", handlers.GetAnnualLeaveBalance)
+			hr.GET("/leaves/calendar", handlers.GetLeaveCalendar)
+			hr.GET("/leaves/department-report", handlers.GetDepartmentLeaveReport)
+			hr.GET("/leaves/upcoming", handlers.GetUpcomingLeaves)
+
+			// Management endpoints
+			hr.POST("/employees/:id/annual-leave-balance/adjust", handlers.AdjustLeaveBalance)
+			hr.POST("/employees/:id/annual-leave-balance/accrual", handlers.AddManualAccrual)
+			hr.POST("/leaves/process-accruals", handlers.ProcessMonthlyAccruals)
+		}
+
 		// Admin routes
 		admin := api.Group("")
 		admin.Use(middleware.RequireRole(models.RoleAdmin))
@@ -177,6 +216,54 @@ func SetupRoutes() *gin.Engine {
 			admin.PUT("/employees/:id", handlers.UpdateEmployee)
 			admin.DELETE("/employees/:id", handlers.DeleteEmployee)
 		}
+
+		// Core HR routes - Identity Information
+		api.GET("/employees/:id/identity", handlers.GetIdentityInformation)
+		api.POST("/employees/:id/identity", handlers.CreateOrUpdateIdentityInformation)
+
+		// Core HR routes - Employment Details
+		api.GET("/employees/:id/employment", handlers.GetEmploymentDetails)
+		api.POST("/employees/:id/employment", handlers.CreateOrUpdateEmploymentDetails)
+		api.GET("/employees/:id/employment/history", handlers.GetEmploymentHistory)
+
+		// Core HR routes - Positions
+		api.GET("/positions", handlers.GetPositions)
+		api.GET("/positions/:id", handlers.GetPosition)
+		managerAdmin := api.Group("")
+		managerAdmin.Use(middleware.RequireRole(models.RoleManager, models.RoleAdmin))
+		{
+			managerAdmin.POST("/positions", handlers.CreatePosition)
+			managerAdmin.PUT("/positions/:id", handlers.UpdatePosition)
+			managerAdmin.POST("/employees/:id/positions", handlers.AssignPosition)
+		}
+
+		// Core HR routes - Documents
+		api.GET("/employees/:id/documents", handlers.GetDocuments)
+		api.POST("/employees/:id/documents", handlers.CreateDocument)
+		api.GET("/employees/:id/documents/:doc_id/download", handlers.DownloadDocument)
+		api.DELETE("/employees/:id/documents/:doc_id", handlers.DeleteDocument)
+
+		// Core HR routes - Work Lifecycle
+		api.GET("/employees/:id/lifecycle", handlers.GetLifecycleEvents)
+		managerAdmin.POST("/employees/:id/lifecycle", handlers.CreateLifecycleEvent)
+
+		// Core HR routes - Onboarding
+		api.GET("/employees/:id/onboarding", handlers.GetOnboardingProcess)
+		managerAdmin.POST("/employees/:id/onboarding", handlers.CreateOnboardingProcess)
+
+		// Core HR routes - Offboarding
+		api.GET("/employees/:id/offboarding", handlers.GetOffboardingProcess)
+		managerAdmin.POST("/employees/:id/offboarding", handlers.CreateOffboardingProcess)
+
+		// Core HR routes - Compliance
+		api.GET("/compliance/requirements", handlers.GetComplianceRequirements)
+		api.GET("/employees/:id/compliance", handlers.GetComplianceRecords)
+		managerAdmin.POST("/compliance/requirements", handlers.CreateComplianceRequirement)
+		managerAdmin.POST("/employees/:id/compliance", handlers.CreateComplianceRecord)
+
+		// Core HR routes - Audit Logs
+		api.GET("/audit-logs", handlers.GetAuditLogs)
+		api.GET("/employees/:id/audit-logs", handlers.GetEmployeeAuditLogs)
 	}
 
 	return r

@@ -38,12 +38,24 @@ func CheckOverlappingLeaves(employeeID uint, startDate, endDate time.Time, exclu
 }
 
 // CalculateLeaveBalance calculates the remaining leave balance for an employee
+// For Annual leave, it uses accrual-based calculation (2 days/month)
+// For other leave types, it uses the traditional max days approach
 func CalculateLeaveBalance(employeeID uint, leaveTypeID uint) (int, error) {
 	var leaveType models.LeaveType
 	if err := database.DB.First(&leaveType, leaveTypeID).Error; err != nil {
 		return 0, err
 	}
 
+	// For Annual leave, use accrual-based calculation
+	if leaveType.Name == "Annual" || leaveType.MaxDays == 24 {
+		balance, err := GetCurrentLeaveBalance(employeeID, leaveTypeID)
+		if err != nil {
+			return 0, err
+		}
+		return int(balance), nil
+	}
+
+	// For other leave types, use traditional calculation
 	var usedDays int
 	var leaves []models.Leave
 	if err := database.DB.Where("employee_id = ? AND leave_type_id = ? AND status = ?",
@@ -62,4 +74,3 @@ func CalculateLeaveBalance(employeeID uint, leaveTypeID uint) (int, error) {
 
 	return balance, nil
 }
-

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"hrms-api/database"
 	"hrms-api/models"
 	"hrms-api/utils"
@@ -75,16 +76,43 @@ func ApplyLeave(c *gin.Context) {
 		return
 	}
 
+	// Ensure accruals are up to date for annual leave
+	var leaveTypeCheck models.LeaveType
+	if err := database.DB.First(&leaveTypeCheck, req.LeaveTypeID).Error; err == nil {
+		if leaveTypeCheck.Name == "Annual" || leaveTypeCheck.MaxDays == 24 {
+			utils.EnsureAccrualsUpToDate(employeeID, req.LeaveTypeID)
+		}
+	}
+
 	// Check leave balance
-	balance, err := utils.CalculateLeaveBalance(employeeID, req.LeaveTypeID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate leave balance"})
-		return
+	// For annual leave with future start dates, calculate projected balance at start date
+	var balance int
+	if (leaveType.Name == "Annual" || leaveType.MaxDays == 24) && req.StartDate.After(time.Now()) {
+		// Calculate projected balance at the start date of the leave
+		projectedBalance, err := utils.CalculateProjectedAnnualLeaveBalance(employeeID, req.LeaveTypeID, req.StartDate)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate projected leave balance"})
+			return
+		}
+		balance = int(projectedBalance)
+	} else {
+		// Use current balance for immediate leaves or non-annual leave types
+		var err error
+		balance, err = utils.CalculateLeaveBalance(employeeID, req.LeaveTypeID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate leave balance"})
+			return
+		}
 	}
 
 	leaveDuration := int(req.EndDate.Sub(req.StartDate).Hours()/24) + 1
 	if leaveDuration > balance {
-		c.JSON(http.StatusBadRequest, gin.H{"error": utils.ErrInsufficientBalance.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":           utils.ErrInsufficientBalance.Error(),
+			"current_balance": balance,
+			"requested_days":  leaveDuration,
+			"message":         fmt.Sprintf("Insufficient leave balance. You have %d days available, but requested %d days.", balance, leaveDuration),
+		})
 		return
 	}
 
@@ -156,8 +184,19 @@ func GetLeaveBalance(c *gin.Context) {
 		return
 	}
 
+	// Ensure accruals are up to date for annual leave
+	var annualLeaveType models.LeaveType
+	if err := database.DB.Where("name = ? OR max_days = ?", "Annual", 24).First(&annualLeaveType).Error; err == nil {
+		utils.EnsureAccrualsUpToDate(employeeID, annualLeaveType.ID)
+	}
+
 	var balances []LeaveBalanceResponse
 	for _, lt := range leaveTypes {
+		// Ensure accruals are up to date for annual leave
+		if lt.Name == "Annual" || lt.MaxDays == 24 {
+			utils.EnsureAccrualsUpToDate(employeeID, lt.ID)
+		}
+
 		balance, err := utils.CalculateLeaveBalance(employeeID, lt.ID)
 		if err != nil {
 			continue
@@ -240,6 +279,11 @@ func ApproveLeave(c *gin.Context) {
 	if leave.Status != models.StatusPending {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Leave is not in pending status"})
 		return
+	}
+
+	// Ensure accruals are up to date for annual leave
+	if leave.LeaveType.Name == "Annual" || leave.LeaveType.MaxDays == 24 {
+		utils.EnsureAccrualsUpToDate(leave.EmployeeID, leave.LeaveTypeID)
 	}
 
 	// Check balance again before approving
