@@ -11,6 +11,11 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// Helper function to create string pointer
+func stringPtr(s string) *string {
+	return &s
+}
+
 var DB *gorm.DB
 
 func Connect() error {
@@ -37,6 +42,8 @@ func Migrate() error {
 		&models.Leave{},
 		&models.LeaveAudit{},
 		&models.LeaveAccrual{},
+		&models.LeaveTaken{},
+		&models.LeaveCarryOver{},
 		// Core HR models
 		&models.IdentityInformation{},
 		&models.EmploymentDetails{},
@@ -67,12 +74,22 @@ func SeedData() error {
 	var leaveTypeCount int64
 	DB.Model(&models.LeaveType{}).Count(&leaveTypeCount)
 	if leaveTypeCount == 0 {
+		maxCarryOver := 5.0 // Allow up to 5 days carry-over
+		expiryMonths := 3   // Carry-over expires 3 months into next year (end of Q1)
+
 		leaveTypes := []models.LeaveType{
-			{Name: "Sick", MaxDays: 3},
-			{Name: "Compassionate", MaxDays: 7},
-			{Name: "Annual", MaxDays: 24}, // 24 days/year, accrues 2 days/month
-			{Name: "Maternity", MaxDays: 90},
-			{Name: "Paternity", MaxDays: 7},
+			{Name: "Sick", AccrualRate: 0, MaxDays: 3},
+			{Name: "Compassionate", AccrualRate: 0, MaxDays: 7},
+			{
+				Name:                  "Annual",
+				AccrualRate:           2.0, // 2 days per month
+				MaxDays:               24,  // 24 days/year, accrues 2 days/month
+				AllowCarryOver:        true,
+				MaxCarryOverDays:      &maxCarryOver,
+				CarryOverExpiryMonths: &expiryMonths,
+			},
+			{Name: "Maternity", AccrualRate: 0, MaxDays: 90},
+			{Name: "Paternity", AccrualRate: 0, MaxDays: 7},
 		}
 
 		for _, lt := range leaveTypes {
@@ -102,7 +119,7 @@ func SeedData() error {
 				NRC:          strPtr("123456/78/9"),
 				Firstname:    "John",
 				Lastname:     "Doe",
-				Email:        "john.doe@example.com",
+				Email:        stringPtr("john.doe@example.com"),
 				PasswordHash: string(hashedPassword),
 				Department:   "IT",
 				Role:         models.RoleEmployee,
@@ -111,7 +128,7 @@ func SeedData() error {
 				NRC:          strPtr("987654/32/1"),
 				Firstname:    "Jane",
 				Lastname:     "Manager",
-				Email:        "jane.manager@example.com",
+				Email:        stringPtr("jane.manager@example.com"),
 				PasswordHash: string(hashedPassword),
 				Department:   "HR",
 				Role:         models.RoleManager,
@@ -138,7 +155,7 @@ func SeedData() error {
 			Username:     strPtr(adminUsername),
 			Firstname:    "Admin",
 			Lastname:     "User",
-			Email:        "admin@example.com",
+			Email:        stringPtr("admin@example.com"),
 			PasswordHash: string(hashedPassword),
 			Department:   "Administration",
 			Role:         models.RoleAdmin,

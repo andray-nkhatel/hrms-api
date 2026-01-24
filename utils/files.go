@@ -157,3 +157,83 @@ func DeleteFile(relativePath string) error {
 	fullPath := GetFullFilePath(relativePath)
 	return os.Remove(fullPath)
 }
+
+// Allowed file extensions for leave forms (PNG and PDF only)
+var AllowedLeaveFormExtensions = map[string]bool{
+	".pdf": true,
+	".png": true,
+}
+
+// Allowed MIME types for leave forms
+var AllowedLeaveFormMimeTypes = map[string]bool{
+	"application/pdf": true,
+	"image/png":       true,
+}
+
+// ValidateLeaveFormFileExtension checks if the file extension is allowed for leave forms (PNG/PDF only)
+func ValidateLeaveFormFileExtension(filename string) error {
+	ext := strings.ToLower(filepath.Ext(filename))
+	if !AllowedLeaveFormExtensions[ext] {
+		return fmt.Errorf("file extension %s is not allowed. Only PNG and PDF files are allowed for leave forms", ext)
+	}
+	return nil
+}
+
+// ValidateLeaveFormMimeType checks if the MIME type is allowed for leave forms
+func ValidateLeaveFormMimeType(mimeType string) error {
+	// Remove charset if present
+	mimeType = strings.Split(mimeType, ";")[0]
+	mimeType = strings.TrimSpace(mimeType)
+
+	if !AllowedLeaveFormMimeTypes[mimeType] {
+		return fmt.Errorf("MIME type %s is not allowed. Only PNG and PDF files are allowed for leave forms", mimeType)
+	}
+	return nil
+}
+
+// SaveLeaveFormFile saves an uploaded leave form file to the leave forms directory
+func SaveLeaveFormFile(file io.Reader, filename string, employeeID uint, leaveID uint) (string, int64, error) {
+	// Ensure leave forms directory exists
+	leaveFormsDir := filepath.Join(config.AppConfig.DocumentsPath, "leave_forms")
+	if err := os.MkdirAll(leaveFormsDir, 0755); err != nil {
+		return "", 0, fmt.Errorf("failed to create leave forms directory: %w", err)
+	}
+
+	// Create employee-specific subdirectory
+	employeeDir := filepath.Join(leaveFormsDir, fmt.Sprintf("employee_%d", employeeID))
+	if err := os.MkdirAll(employeeDir, 0755); err != nil {
+		return "", 0, fmt.Errorf("failed to create employee directory: %w", err)
+	}
+
+	// Full file path
+	filePath := filepath.Join(employeeDir, filename)
+
+	// Create the file
+	dst, err := os.Create(filePath)
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to create file: %w", err)
+	}
+	defer dst.Close()
+
+	// Copy file content
+	size, err := io.Copy(dst, file)
+	if err != nil {
+		os.Remove(filePath) // Clean up on error
+		return "", 0, fmt.Errorf("failed to save file: %w", err)
+	}
+
+	// Return relative path from leave_forms directory
+	relativePath := filepath.Join("leave_forms", fmt.Sprintf("employee_%d", employeeID), filename)
+	return relativePath, size, nil
+}
+
+// GetLeaveFormFilePath returns the full file system path for a leave form
+func GetLeaveFormFilePath(relativePath string) string {
+	return filepath.Join(config.AppConfig.DocumentsPath, relativePath)
+}
+
+// DeleteLeaveFormFile deletes a leave form file
+func DeleteLeaveFormFile(relativePath string) error {
+	fullPath := GetLeaveFormFilePath(relativePath)
+	return os.Remove(fullPath)
+}

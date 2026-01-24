@@ -5,6 +5,7 @@ import (
 	"hrms-api/database"
 	_ "hrms-api/docs"
 	"hrms-api/routes"
+	"hrms-api/scheduler"
 	"log"
 
 	"github.com/gin-gonic/gin"
@@ -55,6 +56,10 @@ func main() {
 
 	// Setup routes
 	r := routes.SetupRoutes()
+
+	// Start automatic accrual scheduler
+	scheduler.StartAccrualScheduler()
+	defer scheduler.StopAccrualScheduler()
 
 	// Start server - bind to all interfaces (0.0.0.0) to allow network access
 	address := "0.0.0.0:" + config.AppConfig.Port

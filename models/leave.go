@@ -19,13 +19,18 @@ type Leave struct {
 	ID              uint           `gorm:"primaryKey" json:"id"`
 	EmployeeID      uint           `gorm:"not null;index" json:"employee_id"`
 	LeaveTypeID     uint           `gorm:"not null;index" json:"leave_type_id"`
-	StartDate       time.Time      `gorm:"type:date;not null" json:"start_date"`
-	EndDate         time.Time      `gorm:"type:date;not null" json:"end_date"`
+	StartDate       time.Time      `gorm:"type:date;not null;index" json:"start_date"`
+	EndDate         time.Time      `gorm:"type:date;not null;index" json:"end_date"`
 	Reason          string         `gorm:"type:text" json:"reason,omitempty"`
-	Status          LeaveStatus    `gorm:"type:varchar(20);default:'Pending'" json:"status"`
+	Status          LeaveStatus    `gorm:"type:varchar(20);default:'Pending';index" json:"status"`
 	RejectionReason string         `gorm:"type:text" json:"rejection_reason,omitempty"`
 	ApprovedBy      *uint          `gorm:"index" json:"approved_by,omitempty"`
 	ApprovedAt      *time.Time     `json:"approved_at,omitempty"`
+	// Leave form attachment fields
+	FormFileName    *string        `gorm:"type:varchar(255)" json:"form_file_name,omitempty"`
+	FormFilePath    *string        `gorm:"type:varchar(500)" json:"form_file_path,omitempty"`
+	FormFileSize    *int64         `json:"form_file_size,omitempty"`
+	FormMimeType    *string        `gorm:"type:varchar(100)" json:"form_mime_type,omitempty"`
 	CreatedAt       time.Time      `json:"created_at"`
 	UpdatedAt       time.Time      `json:"updated_at"`
 	DeletedAt       gorm.DeletedAt `gorm:"index" json:"-"`

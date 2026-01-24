@@ -14,10 +14,10 @@ import (
 
 // ApplyLeaveRequest represents a leave application
 type ApplyLeaveRequest struct {
-	LeaveTypeID uint      `json:"leave_type_id" binding:"required" example:"1"`
-	StartDate   time.Time `json:"start_date" binding:"required" time_format:"2006-01-02" example:"2025-12-01"`
-	EndDate     time.Time `json:"end_date" binding:"required" time_format:"2006-01-02" example:"2025-12-05"`
-	Reason      string    `json:"reason" example:"Family vacation"`
+	LeaveTypeID uint   `json:"leave_type_id" binding:"required" example:"1"`
+	StartDate   string `json:"start_date" binding:"required" example:"2025-12-01"`
+	EndDate     string `json:"end_date" binding:"required" example:"2025-12-05"`
+	Reason      string `json:"reason" example:"Family vacation"`
 }
 
 // LeaveBalanceResponse represents leave balance for a leave type
@@ -52,8 +52,21 @@ func ApplyLeave(c *gin.Context) {
 		return
 	}
 
+	// Parse dates
+	startDate, err := time.Parse("2006-01-02", req.StartDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start_date format. Use YYYY-MM-DD"})
+		return
+	}
+
+	endDate, err := time.Parse("2006-01-02", req.EndDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid end_date format. Use YYYY-MM-DD"})
+		return
+	}
+
 	// Validate dates
-	if err := utils.ValidateLeaveDates(req.StartDate, req.EndDate); err != nil {
+	if err := utils.ValidateLeaveDates(startDate, endDate); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -66,7 +79,7 @@ func ApplyLeave(c *gin.Context) {
 	}
 
 	// Check for overlapping leaves
-	hasOverlap, err := utils.CheckOverlappingLeaves(employeeID, req.StartDate, req.EndDate, nil)
+	hasOverlap, err := utils.CheckOverlappingLeaves(employeeID, startDate, endDate, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check overlapping leaves"})
 		return
@@ -86,32 +99,32 @@ func ApplyLeave(c *gin.Context) {
 
 	// Check leave balance
 	// For annual leave with future start dates, calculate projected balance at start date
-	var balance int
-	if (leaveType.Name == "Annual" || leaveType.MaxDays == 24) && req.StartDate.After(time.Now()) {
-		// Calculate projected balance at the start date of the leave
-		projectedBalance, err := utils.CalculateProjectedAnnualLeaveBalance(employeeID, req.LeaveTypeID, req.StartDate)
+	var balance float64
+	if (leaveType.Name == "Annual" || leaveType.MaxDays == 24) && startDate.After(time.Now()) {
+		// Calculate projected balance at the start date of the leave (includes carry-over)
+		projectedBalance, err := utils.CalculateProjectedAnnualLeaveBalance(employeeID, req.LeaveTypeID, startDate)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate projected leave balance"})
 			return
 		}
-		balance = int(projectedBalance)
+		balance = projectedBalance
 	} else {
-		// Use current balance for immediate leaves or non-annual leave types
+		// Use current balance for immediate leaves or non-annual leave types (includes carry-over)
 		var err error
-		balance, err = utils.CalculateLeaveBalance(employeeID, req.LeaveTypeID)
+		balance, err = utils.GetCurrentLeaveBalance(employeeID, req.LeaveTypeID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate leave balance"})
 			return
 		}
 	}
 
-	leaveDuration := int(req.EndDate.Sub(req.StartDate).Hours()/24) + 1
+	leaveDuration := float64(int(endDate.Sub(startDate).Hours()/24) + 1)
 	if leaveDuration > balance {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":           utils.ErrInsufficientBalance.Error(),
 			"current_balance": balance,
 			"requested_days":  leaveDuration,
-			"message":         fmt.Sprintf("Insufficient leave balance. You have %d days available, but requested %d days.", balance, leaveDuration),
+			"message":         fmt.Sprintf("Insufficient leave balance. You have %.2f days available, but requested %.2f days.", balance, leaveDuration),
 		})
 		return
 	}
@@ -120,8 +133,8 @@ func ApplyLeave(c *gin.Context) {
 	leave := models.Leave{
 		EmployeeID:  employeeID,
 		LeaveTypeID: req.LeaveTypeID,
-		StartDate:   req.StartDate,
-		EndDate:     req.EndDate,
+		StartDate:   startDate,
+		EndDate:     endDate,
 		Reason:      req.Reason,
 		Status:      models.StatusPending,
 	}
@@ -178,49 +191,44 @@ func GetLeaveBalance(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	employeeID := userID.(uint)
 
-	var leaveTypes []models.LeaveType
-	if err := database.DB.Find(&leaveTypes).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch leave types"})
+	// Get Annual leave type only
+	var annualLeaveType models.LeaveType
+	if err := database.DB.Where("name = ? OR max_days = ?", "Annual", 24).First(&annualLeaveType).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Annual leave type not found"})
 		return
 	}
 
 	// Ensure accruals are up to date for annual leave
-	var annualLeaveType models.LeaveType
-	if err := database.DB.Where("name = ? OR max_days = ?", "Annual", 24).First(&annualLeaveType).Error; err == nil {
-		utils.EnsureAccrualsUpToDate(employeeID, annualLeaveType.ID)
+	utils.EnsureAccrualsUpToDate(employeeID, annualLeaveType.ID)
+
+	// Get current year's balance (from 24 days annual entitlement)
+	currentBalance, err := utils.GetCurrentYearLeaveBalance(employeeID, annualLeaveType.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate leave balance"})
+		return
 	}
 
-	var balances []LeaveBalanceResponse
-	for _, lt := range leaveTypes {
-		// Ensure accruals are up to date for annual leave
-		if lt.Name == "Annual" || lt.MaxDays == 24 {
-			utils.EnsureAccrualsUpToDate(employeeID, lt.ID)
-		}
-
-		balance, err := utils.CalculateLeaveBalance(employeeID, lt.ID)
-		if err != nil {
-			continue
-		}
-
-		// Calculate used days
-		var usedDays int
-		var leaves []models.Leave
-		database.DB.Where("employee_id = ? AND leave_type_id = ? AND status = ?",
-			employeeID, lt.ID, models.StatusApproved).Find(&leaves)
-		for _, leave := range leaves {
-			usedDays += leave.GetDuration()
-		}
-
-		balances = append(balances, LeaveBalanceResponse{
-			LeaveTypeID:   lt.ID,
-			LeaveTypeName: lt.Name,
-			MaxDays:       lt.MaxDays,
-			UsedDays:      usedDays,
-			Balance:       balance,
-		})
+	// Calculate used days in current year for annual leave only
+	now := time.Now()
+	currentYearStart := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, time.UTC)
+	var usedDays int
+	var leaves []models.Leave
+	database.DB.Where("employee_id = ? AND leave_type_id = ? AND status = ? AND start_date >= ?",
+		employeeID, annualLeaveType.ID, models.StatusApproved, currentYearStart).Find(&leaves)
+	for _, leave := range leaves {
+		usedDays += leave.GetDuration()
 	}
 
-	c.JSON(http.StatusOK, balances)
+	// Return only annual leave balance
+	balance := LeaveBalanceResponse{
+		LeaveTypeID:   annualLeaveType.ID,
+		LeaveTypeName: annualLeaveType.Name,
+		MaxDays:       annualLeaveType.MaxDays,
+		UsedDays:      usedDays,
+		Balance:       int(currentBalance),
+	}
+
+	c.JSON(http.StatusOK, []LeaveBalanceResponse{balance})
 }
 
 // GetPendingLeaves returns all pending leave requests
@@ -286,16 +294,29 @@ func ApproveLeave(c *gin.Context) {
 		utils.EnsureAccrualsUpToDate(leave.EmployeeID, leave.LeaveTypeID)
 	}
 
-	// Check balance again before approving
-	balance, err := utils.CalculateLeaveBalance(leave.EmployeeID, leave.LeaveTypeID)
+	// Check balance again before approving (includes carry-over)
+	// Use available balance which accounts for other pending leaves (excluding this one)
+	// For future-dated leaves, this uses projected balance; for current/past-dated, uses current balance
+	targetDate := &leave.StartDate
+	balance, err := utils.GetAvailableLeaveBalance(leave.EmployeeID, leave.LeaveTypeID, &leave.ID, targetDate)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate leave balance"})
-		return
+		// Fallback: if available balance calculation fails, use current balance
+		// This can happen if there's an issue with the calculation
+		balance, err = utils.GetCurrentLeaveBalance(leave.EmployeeID, leave.LeaveTypeID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate leave balance"})
+			return
+		}
 	}
 
-	leaveDuration := leave.GetDuration()
+	leaveDuration := float64(leave.GetDuration())
 	if leaveDuration > balance {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Insufficient leave balance"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":           "Insufficient leave balance",
+			"current_balance": balance,
+			"requested_days":  leaveDuration,
+			"message":         fmt.Sprintf("Insufficient leave balance. Available: %.2f days, Requested: %.2f days.", balance, leaveDuration),
+		})
 		return
 	}
 
@@ -308,6 +329,14 @@ func ApproveLeave(c *gin.Context) {
 	if err := database.DB.Save(&leave).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to approve leave"})
 		return
+	}
+
+	// Update carry-over usage if carry-over is enabled
+	if leave.LeaveType.AllowCarryOver {
+		if err := utils.UpdateCarryOverUsage(leave.EmployeeID, leave.LeaveTypeID, leaveDuration); err != nil {
+			// Log error but don't fail the approval
+			// In production, you might want to log this to a monitoring system
+		}
 	}
 
 	// Create audit record

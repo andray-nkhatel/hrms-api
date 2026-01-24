@@ -5,6 +5,8 @@ import (
 	"hrms-api/models"
 	"hrms-api/utils"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,6 +27,7 @@ type RegisterRequest struct {
 	Password   string      `json:"password" binding:"required,min=6" example:"password123"`
 	Department string      `json:"department" example:"IT"`
 	Role       models.Role `json:"role" example:"employee"`
+	HireDate   *string     `json:"hire_date,omitempty" example:"2025-01-15"` // Optional: YYYY-MM-DD format, defaults to today if not provided
 }
 
 // AdminLoginRequest represents admin login credentials
@@ -184,11 +187,21 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	// Check if NRC or email already exists
+	// Check if NRC or email already exists (including soft-deleted records)
 	var existingEmployee models.Employee
-	if err := database.DB.Where("nrc = ? OR email = ?", req.NRC, req.Email).First(&existingEmployee).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "NRC or email already exists"})
-		return
+	if err := database.DB.Unscoped().Where("nrc = ? OR email = ?", req.NRC, req.Email).First(&existingEmployee).Error; err == nil {
+		// If found and it's soft-deleted, permanently delete it to allow reuse
+		if existingEmployee.DeletedAt.Valid {
+			// Permanently delete the soft-deleted employee to allow NRC/email reuse
+			if err := database.DB.Unscoped().Delete(&existingEmployee).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clean up deleted employee record"})
+				return
+			}
+		} else {
+			// Active employee with this NRC/email exists
+			c.JSON(http.StatusConflict, gin.H{"error": "NRC or email already exists"})
+			return
+		}
 	}
 
 	hashedPassword, err := utils.HashPassword(req.Password)
@@ -198,19 +211,61 @@ func Register(c *gin.Context) {
 	}
 
 	nrc := req.NRC
+	var emailPtr *string
+	if req.Email != "" {
+		emailPtr = &req.Email
+	}
 	employee := models.Employee{
 		NRC:          &nrc,
 		Firstname:    req.Firstname,
 		Lastname:     req.Lastname,
-		Email:        req.Email,
+		Email:        emailPtr,
 		PasswordHash: hashedPassword,
 		Department:   req.Department,
 		Role:         req.Role,
 	}
 
 	if err := database.DB.Create(&employee).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create employee"})
+		// Check for duplicate key constraint violation
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
+			c.JSON(http.StatusConflict, gin.H{"error": "NRC or email already exists in the database"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create employee: " + err.Error()})
 		return
+	}
+
+	// Automatically create EmploymentDetails with hire date
+	var hireDate *time.Time
+	if req.HireDate != nil && *req.HireDate != "" {
+		// Parse provided hire date
+		parsedDate, err := time.Parse("2006-01-02", *req.HireDate)
+		if err != nil {
+			// If parsing fails, use today's date instead of failing
+			today := time.Now()
+			hireDate = &today
+		} else {
+			hireDate = &parsedDate
+		}
+	} else {
+		// Default to today if not provided
+		today := time.Now()
+		hireDate = &today
+	}
+
+	// Create EmploymentDetails
+	employmentDetails := models.EmploymentDetails{
+		EmployeeID:       employee.ID,
+		EmploymentType:   models.EmploymentTypeFullTime,
+		EmploymentStatus: models.EmploymentStatusActive,
+		HireDate:         hireDate,
+		StartDate:        hireDate, // Set start date same as hire date
+	}
+
+	if err := database.DB.Create(&employmentDetails).Error; err != nil {
+		// Log error but don't fail employee creation
+		// EmploymentDetails can be added later via the employment endpoint
+		// Continue with token generation
 	}
 
 	token, err := utils.GenerateToken(&employee)

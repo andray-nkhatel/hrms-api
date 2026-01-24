@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,10 +26,11 @@ type CreateEmployeeRequest struct {
 	NRC        string      `json:"nrc" binding:"required" example:"555666/77/8"`
 	Firstname  string      `json:"firstname" binding:"required" example:"Jane"`
 	Lastname   string      `json:"lastname" binding:"required" example:"Smith"`
-	Email      string      `json:"email" binding:"required,email" example:"jane@example.com"`
+	Email      string      `json:"email" binding:"omitempty,email" example:"jane@example.com"` // Optional now
 	Password   string      `json:"password" binding:"required,min=6" example:"password123"`
 	Department string      `json:"department" example:"HR"`
 	Role       models.Role `json:"role" binding:"required" example:"manager"`
+	HireDate   *string     `json:"hire_date,omitempty" example:"2025-01-15"` // Optional: YYYY-MM-DD format, defaults to today if not provided
 }
 
 // CreateAdminRequest represents data for creating an admin (uses username)
@@ -36,7 +38,7 @@ type CreateAdminRequest struct {
 	Username   string `json:"username" binding:"required" example:"admin2"`
 	Firstname  string `json:"firstname" binding:"required" example:"Admin"`
 	Lastname   string `json:"lastname" binding:"required" example:"User"`
-	Email      string `json:"email" binding:"required,email" example:"admin2@example.com"`
+	Email      string `json:"email" binding:"omitempty,email" example:"admin2@example.com"` // Optional now
 	Password   string `json:"password" binding:"required,min=6" example:"password123"`
 	Department string `json:"department" example:"Administration"`
 }
@@ -207,11 +209,25 @@ func CreateEmployee(c *gin.Context) {
 		return
 	}
 
-	// Check if NRC or email already exists
+	// Check if NRC or email already exists (including soft-deleted records)
 	var existingEmployee models.Employee
-	if err := database.DB.Where("nrc = ? OR email = ?", req.NRC, req.Email).First(&existingEmployee).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "NRC or email already exists"})
-		return
+	emailCheck := req.Email
+	if emailCheck == "" {
+		emailCheck = "NO_EMAIL_" + req.NRC // Use a placeholder if email is empty
+	}
+	if err := database.DB.Unscoped().Where("nrc = ? OR (email IS NOT NULL AND email = ?)", req.NRC, emailCheck).First(&existingEmployee).Error; err == nil {
+		// If found and it's soft-deleted, permanently delete it to allow reuse
+		if existingEmployee.DeletedAt.Valid {
+			// Permanently delete the soft-deleted employee to allow NRC/email reuse
+			if err := database.DB.Unscoped().Delete(&existingEmployee).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clean up deleted employee record"})
+				return
+			}
+		} else {
+			// Active employee with this NRC/email exists
+			c.JSON(http.StatusConflict, gin.H{"error": "NRC or email already exists"})
+			return
+		}
 	}
 
 	hashedPassword, err := utils.HashPassword(req.Password)
@@ -221,18 +237,64 @@ func CreateEmployee(c *gin.Context) {
 	}
 
 	nrc := req.NRC
+	var email *string
+	if req.Email != "" {
+		email = &req.Email
+	}
 	employee := models.Employee{
 		NRC:          &nrc,
 		Firstname:    req.Firstname,
 		Lastname:     req.Lastname,
-		Email:        req.Email,
+		Email:        email,
 		PasswordHash: hashedPassword,
 		Department:   req.Department,
 		Role:         req.Role,
 	}
 
 	if err := database.DB.Create(&employee).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create employee"})
+		// Check for duplicate key constraint violation
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
+			c.JSON(http.StatusConflict, gin.H{"error": "NRC or email already exists in the database"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create employee: " + err.Error()})
+		return
+	}
+
+	// Automatically create EmploymentDetails with hire date
+	var hireDate *time.Time
+	if req.HireDate != nil && *req.HireDate != "" {
+		// Parse provided hire date
+		parsedDate, err := time.Parse("2006-01-02", *req.HireDate)
+		if err != nil {
+			// If parsing fails, use today's date instead of failing
+			today := time.Now()
+			hireDate = &today
+		} else {
+			hireDate = &parsedDate
+		}
+	} else {
+		// Default to today if not provided
+		today := time.Now()
+		hireDate = &today
+	}
+
+	// Create EmploymentDetails
+	employmentDetails := models.EmploymentDetails{
+		EmployeeID:       employee.ID,
+		EmploymentType:   models.EmploymentTypeFullTime,
+		EmploymentStatus: models.EmploymentStatusActive,
+		HireDate:         hireDate,
+		StartDate:        hireDate, // Set start date same as hire date
+	}
+
+	if err := database.DB.Create(&employmentDetails).Error; err != nil {
+		// Log error but don't fail employee creation
+		// EmploymentDetails can be added later via the employment endpoint
+		c.JSON(http.StatusCreated, gin.H{
+			"employee": employee,
+			"warning":  "Employee created but employment details could not be created. Please add them manually.",
+		})
 		return
 	}
 
@@ -261,11 +323,25 @@ func CreateAdmin(c *gin.Context) {
 		return
 	}
 
-	// Check if username or email already exists
+	// Check if username or email already exists (including soft-deleted records)
 	var existingEmployee models.Employee
-	if err := database.DB.Where("username = ? OR email = ?", req.Username, req.Email).First(&existingEmployee).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "Username or email already exists"})
-		return
+	emailCheck := req.Email
+	if emailCheck == "" {
+		emailCheck = "NO_EMAIL_" + req.Username // Use a placeholder if email is empty
+	}
+	if err := database.DB.Unscoped().Where("username = ? OR (email IS NOT NULL AND email = ?)", req.Username, emailCheck).First(&existingEmployee).Error; err == nil {
+		// If found and it's soft-deleted, permanently delete it to allow reuse
+		if existingEmployee.DeletedAt.Valid {
+			// Permanently delete the soft-deleted employee to allow username/email reuse
+			if err := database.DB.Unscoped().Delete(&existingEmployee).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clean up deleted employee record"})
+				return
+			}
+		} else {
+			// Active employee with this username/email exists
+			c.JSON(http.StatusConflict, gin.H{"error": "Username or email already exists"})
+			return
+		}
 	}
 
 	hashedPassword, err := utils.HashPassword(req.Password)
@@ -275,18 +351,27 @@ func CreateAdmin(c *gin.Context) {
 	}
 
 	username := req.Username
+	var email *string
+	if req.Email != "" {
+		email = &req.Email
+	}
 	employee := models.Employee{
 		Username:     &username,
 		Firstname:    req.Firstname,
 		Lastname:     req.Lastname,
-		Email:        req.Email,
+		Email:        email,
 		PasswordHash: hashedPassword,
 		Department:   req.Department,
 		Role:         models.RoleAdmin,
 	}
 
 	if err := database.DB.Create(&employee).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create admin"})
+		// Check for duplicate key constraint violation
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
+			c.JSON(http.StatusConflict, gin.H{"error": "Username or email already exists in the database"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create admin: " + err.Error()})
 		return
 	}
 
@@ -306,7 +391,8 @@ func CreateAdmin(c *gin.Context) {
 // @Router /api/employees [get]
 func GetEmployees(c *gin.Context) {
 	var employees []models.Employee
-	if err := database.DB.Select("id", "nrc", "username", "firstname", "lastname", "email", "department", "role", "created_at", "updated_at").
+	if err := database.DB.Preload("Employment").
+		Select("id", "nrc", "username", "firstname", "lastname", "email", "department", "role", "created_at", "updated_at").
 		Find(&employees).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch employees"})
 		return
@@ -374,11 +460,30 @@ func UpdateEmployee(c *gin.Context) {
 	}
 
 	var req struct {
-		Firstname  string      `json:"firstname"`
-		Lastname   string      `json:"lastname"`
-		Email      string      `json:"email" binding:"omitempty,email"`
-		Department string      `json:"department"`
-		Role       models.Role `json:"role"`
+		Firstname                   string      `json:"firstname"`
+		Lastname                    string      `json:"lastname"`
+		Email                       *string     `json:"email" binding:"omitempty,email"`
+		NRC                         *string     `json:"nrc"`
+		Department                  string      `json:"department"`
+		Role                        models.Role `json:"role"`
+		Phone                       *string     `json:"phone"`
+		Mobile                      *string     `json:"mobile"`
+		Address                     *string     `json:"address"`
+		City                        *string     `json:"city"`
+		PostalCode                  *string     `json:"postal_code"`
+		DateOfBirth                 *string     `json:"date_of_birth"`
+		Gender                      *string     `json:"gender"`
+		JobTitle                    *string     `json:"job_title"`
+		Position                    *string     `json:"position"` // Maps to JobTitle for backward compatibility
+		EmploymentStatus            *string     `json:"employment_status"`
+		EmergencyContactName        *string     `json:"emergency_contact_name"`
+		EmergencyContactPhone       *string     `json:"emergency_contact_phone"`
+		EmergencyContactRelationship *string    `json:"emergency_contact_relationship"`
+		BankName                    *string     `json:"bank_name"`
+		BankAccountNumber           *string     `json:"bank_account_number"`
+		TaxID                       *string     `json:"tax_id"`
+		Notes                       *string     `json:"notes"`
+		HireDate                    *string     `json:"hire_date"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -392,7 +497,7 @@ func UpdateEmployee(c *gin.Context) {
 	if req.Lastname != "" {
 		employee.Lastname = req.Lastname
 	}
-	if req.Email != "" {
+	if req.Email != nil {
 		employee.Email = req.Email
 	}
 	if req.Department != "" {
@@ -421,6 +526,86 @@ func UpdateEmployee(c *gin.Context) {
 
 	employee.PasswordHash = ""
 	c.JSON(http.StatusOK, employee)
+}
+
+// ChangePassword allows an employee to change their own password
+// @Summary Change password
+// @Description Change password for the authenticated user (requires current password)
+// @Tags Admin - Employees
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Employee ID"
+// @Param request body ChangePasswordRequest true "Password change data"
+// @Success 200 {object} MessageResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/employees/{id}/password [put]
+func ChangePassword(c *gin.Context) {
+	employeeID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid employee ID"})
+		return
+	}
+
+	// Get current user ID from token
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	// Users can only change their own password
+	if uint(employeeID) != userID.(uint) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You can only change your own password"})
+		return
+	}
+
+	var employee models.Employee
+	if err := database.DB.First(&employee, uint(employeeID)).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Employee not found"})
+		return
+	}
+
+	var req struct {
+		CurrentPassword string `json:"current_password" binding:"required"`
+		NewPassword     string `json:"new_password" binding:"required,min=6"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Verify current password
+	if !utils.CheckPasswordHash(req.CurrentPassword, employee.PasswordHash) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Current password is incorrect"})
+		return
+	}
+
+	// Hash new password
+	hashedPassword, err := utils.HashPassword(req.NewPassword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		return
+	}
+
+	// Update password
+	employee.PasswordHash = hashedPassword
+	if err := database.DB.Save(&employee).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update password"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Password changed successfully"})
+}
+
+// ChangePasswordRequest represents a password change request
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password" binding:"required" example:"oldPassword123"`
+	NewPassword     string `json:"new_password" binding:"required,min=6" example:"newPassword123"`
 }
 
 // DeleteEmployee deletes an employee
@@ -568,7 +753,11 @@ func BulkUploadEmployees(c *gin.Context) {
 
 		// Check if NRC or email already exists
 		var existing models.Employee
-		if err := database.DB.Where("nrc = ? OR email = ?", nrc, email).First(&existing).Error; err == nil {
+		emailCheck := email
+		if emailCheck == "" {
+			emailCheck = "NO_EMAIL_" + nrc // Use a placeholder if email is empty
+		}
+		if err := database.DB.Where("nrc = ? OR (email IS NOT NULL AND email = ?)", nrc, emailCheck).First(&existing).Error; err == nil {
 			errors = append(errors, fmt.Sprintf("Row %d: NRC or email already exists", rowNum))
 			failed++
 			continue
@@ -581,11 +770,15 @@ func BulkUploadEmployees(c *gin.Context) {
 			continue
 		}
 
+		var emailPtr *string
+		if email != "" {
+			emailPtr = &email
+		}
 		employee := models.Employee{
 			NRC:          &nrc,
 			Firstname:    firstname,
 			Lastname:     lastname,
-			Email:        email,
+			Email:        emailPtr,
 			PasswordHash: hashedPassword,
 			Department:   department,
 			Role:         models.Role(role),
@@ -606,4 +799,208 @@ func BulkUploadEmployees(c *gin.Context) {
 		Failed:  failed,
 		Errors:  errors,
 	})
+}
+
+// ExportEmployees exports all employees data to PDF
+// @Summary Export all employees
+// @Description Export all employees data to PDF format (Admin only)
+// @Tags Admin - Employees
+// @Produce application/pdf
+// @Security BearerAuth
+// @Success 200 {file} file "PDF file"
+// @Failure 401 {object} ErrorResponse
+// @Failure 403 {object} ErrorResponse
+// @Router /api/employees/export [get]
+func ExportEmployees(c *gin.Context) {
+	// Get all employees (excluding admin users)
+	var employees []models.Employee
+	if err := database.DB.Where("role != ?", models.RoleAdmin).Find(&employees).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch employees"})
+		return
+	}
+
+	// Convert to export format
+	exportData := make([]utils.EmployeeDataExport, 0, len(employees))
+	for _, emp := range employees {
+		// Get employment details for start date and tenure
+		var employment models.EmploymentDetails
+		var startDate string
+		var tenure string
+		if err := database.DB.Where("employee_id = ?", emp.ID).First(&employment).Error; err == nil {
+			if employment.StartDate != nil {
+				startDate = employment.StartDate.Format("2006-01-02")
+			} else if employment.HireDate != nil {
+				startDate = employment.HireDate.Format("2006-01-02")
+			}
+			// Calculate tenure
+			if employment.StartDate != nil {
+				start := *employment.StartDate
+				now := time.Now()
+				years := now.Year() - start.Year()
+				months := int(now.Month()) - int(start.Month())
+				if months < 0 {
+					years--
+					months += 12
+				}
+				if years > 0 {
+					tenure = fmt.Sprintf("%d years, %d months", years, months)
+				} else {
+					tenure = fmt.Sprintf("%d months", months)
+				}
+			}
+		}
+
+		exportData = append(exportData, utils.EmployeeDataExport{
+			ID:                        emp.ID,
+			EmployeeNumber:            getStringValue(emp.EmployeeNumber),
+			NRC:                       getStringValue(emp.NRC),
+			Username:                  getStringValue(emp.Username),
+			Firstname:                 emp.Firstname,
+			Lastname:                  emp.Lastname,
+			Email:                     getStringValue(emp.Email),
+			Department:                emp.Department,
+			Role:                      string(emp.Role),
+			Phone:                     getStringValue(emp.Phone),
+			Mobile:                    getStringValue(emp.Mobile),
+			Address:                   getStringValue(emp.Address),
+			City:                      getStringValue(emp.City),
+			PostalCode:                getStringValue(emp.PostalCode),
+			DateOfBirth:               formatDate(emp.DateOfBirth),
+			Gender:                    getStringValue(emp.Gender),
+			JobTitle:                  getStringValue(emp.JobTitle),
+			EmploymentStatus:          getStringValue(emp.EmploymentStatus),
+			StartDate:                 startDate,
+			Tenure:                    tenure,
+			EmergencyContactName:      getStringValue(emp.EmergencyContactName),
+			EmergencyContactPhone:     getStringValue(emp.EmergencyContactPhone),
+			EmergencyContactRelationship: getStringValue(emp.EmergencyContactRelationship),
+			BankName:                  getStringValue(emp.BankName),
+			BankAccountNumber:         getStringValue(emp.BankAccountNumber),
+			TaxID:                     getStringValue(emp.TaxID),
+			Notes:                     getStringValue(emp.Notes),
+		})
+	}
+
+	// Generate PDF
+	fileData, err := utils.ExportEmployeesToPDF(exportData)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF"})
+		return
+	}
+
+	filename := fmt.Sprintf("employees_%s.pdf", time.Now().Format("20060102_150405"))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Header("Content-Type", "application/pdf")
+	c.Data(http.StatusOK, "application/pdf", fileData)
+}
+
+// ExportEmployee exports single employee data to PDF
+// @Summary Export employee
+// @Description Export single employee detailed data to PDF format (Admin only)
+// @Tags Admin - Employees
+// @Produce application/pdf
+// @Security BearerAuth
+// @Param id path int true "Employee ID"
+// @Success 200 {file} file "PDF file"
+// @Failure 401 {object} ErrorResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/employees/{id}/export [get]
+func ExportEmployee(c *gin.Context) {
+	employeeID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid employee ID"})
+		return
+	}
+
+	var employee models.Employee
+	if err := database.DB.First(&employee, uint(employeeID)).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Employee not found"})
+		return
+	}
+
+	// Get employment details
+	var employment models.EmploymentDetails
+	var startDate string
+	var tenure string
+	if err := database.DB.Where("employee_id = ?", employee.ID).First(&employment).Error; err == nil {
+		if employment.StartDate != nil {
+			startDate = employment.StartDate.Format("2006-01-02")
+		} else if employment.HireDate != nil {
+			startDate = employment.HireDate.Format("2006-01-02")
+		}
+		// Calculate tenure
+		if employment.StartDate != nil {
+			start := *employment.StartDate
+			now := time.Now()
+			years := now.Year() - start.Year()
+			months := int(now.Month()) - int(start.Month())
+			if months < 0 {
+				years--
+				months += 12
+			}
+			if years > 0 {
+				tenure = fmt.Sprintf("%d years, %d months", years, months)
+			} else {
+				tenure = fmt.Sprintf("%d months", months)
+			}
+		}
+	}
+
+	exportData := utils.EmployeeDataExport{
+		ID:                        employee.ID,
+		EmployeeNumber:            getStringValue(employee.EmployeeNumber),
+		NRC:                       getStringValue(employee.NRC),
+		Username:                  getStringValue(employee.Username),
+		Firstname:                 employee.Firstname,
+		Lastname:                  employee.Lastname,
+		Email:                     getStringValue(employee.Email),
+		Department:                employee.Department,
+		Role:                      string(employee.Role),
+		Phone:                     getStringValue(employee.Phone),
+		Mobile:                    getStringValue(employee.Mobile),
+		Address:                   getStringValue(employee.Address),
+		City:                      getStringValue(employee.City),
+		PostalCode:                getStringValue(employee.PostalCode),
+		DateOfBirth:               formatDate(employee.DateOfBirth),
+		Gender:                    getStringValue(employee.Gender),
+		JobTitle:                  getStringValue(employee.JobTitle),
+		EmploymentStatus:          getStringValue(employee.EmploymentStatus),
+		StartDate:                  startDate,
+		Tenure:                    tenure,
+		EmergencyContactName:      getStringValue(employee.EmergencyContactName),
+		EmergencyContactPhone:     getStringValue(employee.EmergencyContactPhone),
+		EmergencyContactRelationship: getStringValue(employee.EmergencyContactRelationship),
+		BankName:                  getStringValue(employee.BankName),
+		BankAccountNumber:         getStringValue(employee.BankAccountNumber),
+		TaxID:                     getStringValue(employee.TaxID),
+		Notes:                     getStringValue(employee.Notes),
+	}
+
+	// Generate PDF
+	fileData, err := utils.ExportEmployeeToPDF(exportData)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF"})
+		return
+	}
+
+	filename := fmt.Sprintf("employee_%s_%s_%s.pdf", employee.Firstname, employee.Lastname, time.Now().Format("20060102"))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Header("Content-Type", "application/pdf")
+	c.Data(http.StatusOK, "application/pdf", fileData)
+}
+
+// Helper functions
+func getStringValue(s *string) string {
+	if s == nil {
+		return "-"
+	}
+	return *s
+}
+
+func formatDate(t *time.Time) string {
+	if t == nil {
+		return "-"
+	}
+	return t.Format("2006-01-02")
 }

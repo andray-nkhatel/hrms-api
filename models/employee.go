@@ -15,19 +15,39 @@ const (
 )
 
 type Employee struct {
-	ID           uint           `gorm:"primaryKey" json:"id"`
-	NRC          *string        `gorm:"uniqueIndex;size:20" json:"nrc,omitempty"`
-	Username     *string        `gorm:"uniqueIndex;size:50" json:"username,omitempty"`
-	Firstname    string         `gorm:"size:50;not null" json:"firstname"`
-	Lastname     string         `gorm:"size:50;not null" json:"lastname"`
-	Email        string         `gorm:"uniqueIndex;size:100" json:"email"`
-	PasswordHash string         `gorm:"column:password_hash;not null;size:256" json:"-"`
-	Department   string         `gorm:"size:50" json:"department"`
-	PositionID   *uint          `gorm:"index" json:"position_id,omitempty"`
-	Role         Role           `gorm:"type:varchar(50);default:'employee'" json:"role"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
-	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
+	ID             uint           `gorm:"primaryKey" json:"id"`
+	EmployeeNumber *string        `gorm:"uniqueIndex;size:50" json:"employee_number,omitempty"`
+	NRC            *string        `gorm:"uniqueIndex;size:20" json:"nrc,omitempty"`
+	Username       *string        `gorm:"uniqueIndex;size:50" json:"username,omitempty"`
+	Firstname      string         `gorm:"size:50;not null" json:"firstname"`
+	Lastname       string         `gorm:"size:50;not null" json:"lastname"`
+	Email          *string        `gorm:"uniqueIndex;size:100" json:"email,omitempty"`
+	PasswordHash   string         `gorm:"column:password_hash;not null;size:256" json:"-"`
+	Department     string         `gorm:"size:50" json:"department"`
+	DateJoined     *time.Time     `gorm:"type:date" json:"date_joined,omitempty"`
+	Status         string         `gorm:"size:20;default:'active'" json:"status"` // active, inactive
+	PositionID     *uint          `gorm:"index" json:"position_id,omitempty"`
+	Role           Role           `gorm:"type:varchar(50);default:'employee'" json:"role"`
+	// Additional employee fields
+	Phone                        *string        `gorm:"size:20" json:"phone,omitempty"`
+	Mobile                        *string        `gorm:"size:20" json:"mobile,omitempty"`
+	Address                       *string        `gorm:"type:text" json:"address,omitempty"`
+	City                          *string        `gorm:"size:100" json:"city,omitempty"`
+	PostalCode                    *string        `gorm:"size:20" json:"postal_code,omitempty"`
+	DateOfBirth                   *time.Time     `gorm:"type:date" json:"date_of_birth,omitempty"`
+	Gender                        *string        `gorm:"size:20" json:"gender,omitempty"`
+	JobTitle                      *string        `gorm:"size:100" json:"job_title,omitempty"`
+	EmploymentStatus              *string        `gorm:"size:20;default:'active'" json:"employment_status,omitempty"`
+	EmergencyContactName          *string        `gorm:"size:100" json:"emergency_contact_name,omitempty"`
+	EmergencyContactPhone         *string        `gorm:"size:20" json:"emergency_contact_phone,omitempty"`
+	EmergencyContactRelationship  *string        `gorm:"size:50" json:"emergency_contact_relationship,omitempty"`
+	BankName                      *string        `gorm:"size:100" json:"bank_name,omitempty"`
+	BankAccountNumber             *string        `gorm:"size:50" json:"bank_account_number,omitempty"`
+	TaxID                         *string        `gorm:"size:50" json:"tax_id,omitempty"`
+	Notes                         *string        `gorm:"type:text" json:"notes,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+	DeletedAt      gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relationships
 	Leaves              []Leave              `gorm:"foreignKey:EmployeeID" json:"leaves,omitempty"`

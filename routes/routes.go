@@ -186,6 +186,8 @@ func SetupRoutes() *gin.Engine {
 			// View endpoints
 			hr.GET("/employees/annual-leave-balances", handlers.GetAllEmployeesLeaveBalances)
 			hr.GET("/employees/annual-leave-balances/export", handlers.ExportAnnualLeaveBalances)
+			// More specific routes must come before less specific ones
+			hr.GET("/employees/:id/annual-leave-balance/export", handlers.ExportEmployeeAnnualLeave)
 			hr.GET("/employees/:id/annual-leave-balance", handlers.GetAnnualLeaveBalance)
 			hr.GET("/leaves/calendar", handlers.GetLeaveCalendar)
 			hr.GET("/leaves/department-report", handlers.GetDepartmentLeaveReport)
@@ -193,8 +195,50 @@ func SetupRoutes() *gin.Engine {
 
 			// Management endpoints
 			hr.POST("/employees/:id/annual-leave-balance/adjust", handlers.AdjustLeaveBalance)
+			hr.POST("/employees/:id/annual-leave-balance/set-initial", handlers.SetInitialBalance)
 			hr.POST("/employees/:id/annual-leave-balance/accrual", handlers.AddManualAccrual)
+			hr.POST("/employees/:id/annual-leave-balance/accruals/bulk", handlers.BulkAddManualAccruals)
+			hr.POST("/leave-balances/import", handlers.BulkImportLeaveBalances)
 			hr.POST("/leaves/process-accruals", handlers.ProcessMonthlyAccruals)
+
+			// Bulk leave operations
+			hr.POST("/leaves/bulk-import", handlers.BulkCreateLeaves)
+			hr.POST("/leaves/bulk-template", handlers.BulkCreateLeavesFromTemplate)
+
+			// Carry-over endpoints
+			hr.POST("/leaves/process-carryover", handlers.ProcessYearEndCarryOver)
+			hr.GET("/employees/:id/carryover-history", handlers.GetCarryOverHistory)
+			hr.GET("/employees/:id/carryover-balance", handlers.GetCarryOverBalance)
+			hr.POST("/leaves/expire-carryovers", handlers.ExpireCarryOvers)
+			hr.GET("/leaves/monthly-report", handlers.GetMonthlyLeaveReport)
+			hr.GET("/leaves/monthly-report/export", handlers.ExportMonthlyLeaveReport)
+		}
+
+		// Admin Leave Management routes (Admin only - direct leave record management)
+		adminLeaves := api.Group("/hr")
+		adminLeaves.Use(middleware.RequireRole(models.RoleAdmin))
+		{
+			// Admin can create, update, delete leave records for any employee
+			adminLeaves.POST("/leaves", handlers.CreateLeaveForEmployee)
+			adminLeaves.PUT("/leaves/:id", handlers.UpdateLeaveForEmployee)
+			adminLeaves.DELETE("/leaves/:id", handlers.DeleteLeaveForEmployee)
+			adminLeaves.GET("/employees/:id/leaves", handlers.GetEmployeeLeaves)
+			// Download leave form attachment
+			adminLeaves.GET("/leaves/:id/form", handlers.DownloadLeaveForm)
+		}
+
+		// Simplified Admin Leave Management routes (Admin only - simplified workflow)
+		adminSimple := api.Group("/admin")
+		adminSimple.Use(middleware.RequireRole(models.RoleAdmin))
+		{
+			// Record leave taken (no approval workflow)
+			adminSimple.POST("/leave-taken", handlers.RecordLeaveTaken)
+			// Get leave balance (simplified calculation)
+			adminSimple.GET("/employees/:id/leave-balance", handlers.GetLeaveBalanceSimple)
+			// Get employee leave history
+			adminSimple.GET("/employees/:id/leave-taken", handlers.GetEmployeeLeaveHistory)
+			// Get all employees leave balances
+			adminSimple.GET("/employees/leave-balances", handlers.GetAllEmployeesLeaveBalancesSimple)
 		}
 
 		// Admin routes
@@ -212,10 +256,15 @@ func SetupRoutes() *gin.Engine {
 			admin.POST("/admins", handlers.CreateAdmin)                         // For admins (username)
 			admin.GET("/employees/template", handlers.DownloadEmployeeTemplate) // CSV template
 			admin.POST("/employees/bulk", handlers.BulkUploadEmployees)         // Bulk upload
+			admin.GET("/employees/export", handlers.ExportEmployees)            // Export all employees to PDF
 			admin.GET("/employees/:id", handlers.GetEmployee)
+			admin.GET("/employees/:id/export", handlers.ExportEmployee)          // Export single employee to PDF
 			admin.PUT("/employees/:id", handlers.UpdateEmployee)
 			admin.DELETE("/employees/:id", handlers.DeleteEmployee)
 		}
+
+		// User profile routes (all authenticated users can change their own password)
+		api.PUT("/employees/:id/password", handlers.ChangePassword)
 
 		// Core HR routes - Identity Information
 		api.GET("/employees/:id/identity", handlers.GetIdentityInformation)
