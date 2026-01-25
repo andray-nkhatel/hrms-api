@@ -5,11 +5,86 @@ import (
 	"fmt"
 	"hrms-api/database"
 	"hrms-api/models"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/jung-kurt/gofpdf"
 	"github.com/xuri/excelize/v2"
 )
+
+const (
+	InstitutionName = "Chudleigh House School"
+	LogoPath        = "static/assets/chslogo.png"
+)
+
+// addPDFHeader adds logo and institution name to PDF
+func addPDFHeader(pdf *gofpdf.Fpdf) error {
+	// Try multiple possible paths for the logo
+	possiblePaths := []string{
+		LogoPath,
+		filepath.Join("static", "assets", "chslogo.png"),
+		"./static/assets/chslogo.png",
+		filepath.Join(".", "static", "assets", "chslogo.png"),
+		"/home/andrea/Documents/Sources/hrms-api/static/assets/chslogo.png",
+	}
+
+	var logoPath string
+	var found bool
+	for _, path := range possiblePaths {
+		if _, err := os.Stat(path); err == nil {
+			logoPath = path
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		// Logo not found, just add text header
+		pdf.SetXY(10, 10)
+		pdf.SetFont("Arial", "B", 18)
+		pdf.Cell(0, 10, InstitutionName)
+		pdf.Ln(8)
+		return nil
+	}
+
+	// Register image option
+	opt := gofpdf.ImageOptions{
+		ImageType: "PNG",
+	}
+
+	// Try to register the image
+	imageInfo := pdf.RegisterImageOptions(logoPath, opt)
+	if imageInfo == nil {
+		// Image registration failed, just add text header
+		pdf.SetXY(10, 10)
+		pdf.SetFont("Arial", "B", 18)
+		pdf.Cell(0, 10, InstitutionName)
+		pdf.Ln(8)
+		return nil
+	}
+
+	// Get image dimensions and scale appropriately
+	imgWidth := 30.0  // mm
+	imgHeight := 30.0 // mm
+
+	// Add logo on the left at position (10, 10)
+	pdf.ImageOptions(logoPath, 10, 10, imgWidth, imgHeight, false, opt, 0, "")
+
+	// Add institution name next to logo (vertically centered with logo)
+	pdf.SetXY(10+imgWidth+5, 10+(imgHeight/2)-9)
+	pdf.SetFont("Arial", "B", 18)
+	pdf.Cell(0, 10, InstitutionName)
+	
+	// Move to position after header for content
+	pdf.SetXY(10, 10+imgHeight+10)
+	
+	// Add a line separator
+	pdf.Line(10, pdf.GetY(), 200, pdf.GetY())
+	pdf.Ln(5)
+
+	return nil
+}
 
 // AnnualLeaveBalanceExport represents data for export
 type AnnualLeaveBalanceExport struct {
@@ -44,7 +119,17 @@ func ExportAnnualLeaveBalancesToExcel(balances []AnnualLeaveBalanceExport) ([]by
 	f.NewSheet(sheetName)
 	f.DeleteSheet("Sheet1")
 
-	// Set column headers
+	// Add institution name in first row
+	f.SetCellValue(sheetName, "A1", InstitutionName)
+	instStyle, _ := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{
+			Bold: true,
+			Size: 14,
+		},
+	})
+	f.SetCellStyle(sheetName, "A1", "A1", instStyle)
+
+	// Set column headers (starting from row 2)
 	headers := []string{"Employee ID", "Employee Name", "Department", "Total Accrued", "Total Used", "Current Balance"}
 	headerStyle, _ := f.NewStyle(&excelize.Style{
 		Font: &excelize.Font{
@@ -63,7 +148,7 @@ func ExportAnnualLeaveBalancesToExcel(balances []AnnualLeaveBalanceExport) ([]by
 	})
 
 	for i, header := range headers {
-		cell := fmt.Sprintf("%c1", 'A'+i)
+		cell := fmt.Sprintf("%c2", 'A'+i)
 		f.SetCellValue(sheetName, cell, header)
 		f.SetCellStyle(sheetName, cell, cell, headerStyle)
 	}
@@ -74,9 +159,9 @@ func ExportAnnualLeaveBalancesToExcel(balances []AnnualLeaveBalanceExport) ([]by
 	f.SetColWidth(sheetName, "C", "C", 20)
 	f.SetColWidth(sheetName, "D", "F", 15)
 
-	// Write data
+	// Write data (starting from row 3)
 	for i, balance := range balances {
-		row := i + 2
+		row := i + 3
 		f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), balance.EmployeeID)
 		f.SetCellValue(sheetName, fmt.Sprintf("B%d", row), balance.EmployeeName)
 		f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), balance.Department)
@@ -86,15 +171,15 @@ func ExportAnnualLeaveBalancesToExcel(balances []AnnualLeaveBalanceExport) ([]by
 	}
 
 	// Add summary row
-	summaryRow := len(balances) + 3
+	summaryRow := len(balances) + 4
 	summaryStyle, _ := f.NewStyle(&excelize.Style{
 		Font: &excelize.Font{Bold: true},
 		Fill: excelize.Fill{Type: "pattern", Color: []string{"#E0E0E0"}, Pattern: 1},
 	})
 	f.SetCellValue(sheetName, fmt.Sprintf("B%d", summaryRow), "TOTAL")
-	f.SetCellFormula(sheetName, fmt.Sprintf("D%d", summaryRow), fmt.Sprintf("SUM(D2:D%d)", len(balances)+1))
-	f.SetCellFormula(sheetName, fmt.Sprintf("E%d", summaryRow), fmt.Sprintf("SUM(E2:E%d)", len(balances)+1))
-	f.SetCellFormula(sheetName, fmt.Sprintf("F%d", summaryRow), fmt.Sprintf("SUM(F2:F%d)", len(balances)+1))
+	f.SetCellFormula(sheetName, fmt.Sprintf("D%d", summaryRow), fmt.Sprintf("SUM(D3:D%d)", len(balances)+2))
+	f.SetCellFormula(sheetName, fmt.Sprintf("E%d", summaryRow), fmt.Sprintf("SUM(E3:E%d)", len(balances)+2))
+	f.SetCellFormula(sheetName, fmt.Sprintf("F%d", summaryRow), fmt.Sprintf("SUM(F3:F%d)", len(balances)+2))
 	f.SetCellStyle(sheetName, fmt.Sprintf("B%d", summaryRow), fmt.Sprintf("F%d", summaryRow), summaryStyle)
 
 	// Add timestamp
@@ -112,6 +197,11 @@ func ExportAnnualLeaveBalancesToExcel(balances []AnnualLeaveBalanceExport) ([]by
 func ExportAnnualLeaveBalancesToPDF(balances []AnnualLeaveBalanceExport) ([]byte, error) {
 	pdf := gofpdf.New("L", "mm", "A4", "")
 	pdf.AddPage()
+	
+	// Add logo and header
+	_ = addPDFHeader(pdf)
+	
+	// Add report title
 	pdf.SetFont("Arial", "B", 16)
 	pdf.Cell(40, 10, "Annual Leave Balance Report")
 	pdf.Ln(12)
@@ -268,13 +358,23 @@ func ExportEmployeeAnnualLeaveToExcel(report EmployeeAnnualLeaveReport) ([]byte,
 		Fill: excelize.Fill{Type: "pattern", Color: []string{"#E0E0E0"}, Pattern: 1},
 	})
 
-	// Employee Information
-	row := 1
-	f.SetCellValue(sheetName, "A1", "Employee Annual Leave Report")
-	f.MergeCell(sheetName, "A1", "F1")
-	f.SetCellStyle(sheetName, "A1", "F1", headerStyle)
+	// Add institution name
+	f.SetCellValue(sheetName, "A1", InstitutionName)
+	instStyle, _ := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{
+			Bold: true,
+			Size: 14,
+		},
+	})
+	f.SetCellStyle(sheetName, "A1", "A1", instStyle)
 
-	row = 3
+	// Employee Information
+	row := 2
+	f.SetCellValue(sheetName, "A2", "Employee Annual Leave Report")
+	f.MergeCell(sheetName, "A2", "F2")
+	f.SetCellStyle(sheetName, "A2", "F2", headerStyle)
+
+	row = 4
 	f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), "Employee Name:")
 	f.SetCellValue(sheetName, fmt.Sprintf("B%d", row), report.EmployeeName)
 	row++
@@ -379,6 +479,14 @@ func ExportEmployeeAnnualLeaveToExcel(report EmployeeAnnualLeaveReport) ([]byte,
 func ExportEmployeeAnnualLeaveToPDF(report EmployeeAnnualLeaveReport) ([]byte, error) {
 	pdf := gofpdf.New("P", "mm", "A4", "")
 	pdf.AddPage()
+
+	// Add logo and header
+	if err := addPDFHeader(pdf); err != nil {
+		// If logo fails, continue without it
+		pdf.SetFont("Arial", "B", 18)
+		pdf.Cell(0, 10, InstitutionName)
+		pdf.Ln(8)
+	}
 
 	// Title
 	pdf.SetFont("Arial", "B", 16)
@@ -615,7 +723,12 @@ func ExportMonthlyLeaveReportToExcel(reportData []MonthlyLeaveReportData, month 
 
 	// Title rows (matching CSV format)
 	monthName := month.Format("January 2006")
-	f.SetCellValue(sheetName, "C2", fmt.Sprintf("%s STAFF LEAVE DAYS", organizationName))
+	// Use InstitutionName if organizationName is empty
+	orgName := organizationName
+	if orgName == "" {
+		orgName = InstitutionName
+	}
+	f.SetCellValue(sheetName, "C2", fmt.Sprintf("%s STAFF LEAVE DAYS", orgName))
 	f.SetCellValue(sheetName, "C3", fmt.Sprintf("FOR THE MONTH OF %s", monthName))
 
 	// Column headers (row 4, matching CSV)
@@ -716,10 +829,19 @@ type EmployeeDataExport struct {
 func ExportEmployeesToPDF(employees []EmployeeDataExport) ([]byte, error) {
 	pdf := gofpdf.New("L", "mm", "A4", "")
 	pdf.SetTitle("Employee Directory", false)
-	pdf.SetAuthor("HRMS System", false)
+	pdf.SetAuthor(InstitutionName, false)
 	pdf.SetCreator("HRMS API", false)
 
 	pdf.AddPage()
+	
+	// Add logo and header
+	if err := addPDFHeader(pdf); err != nil {
+		// If logo fails, continue without it
+		pdf.SetFont("Arial", "B", 18)
+		pdf.Cell(0, 10, InstitutionName)
+		pdf.Ln(8)
+	}
+	
 	pdf.SetFont("Arial", "B", 16)
 	pdf.Cell(0, 10, "Employee Directory")
 	pdf.Ln(10)
@@ -764,10 +886,19 @@ func ExportEmployeesToPDF(employees []EmployeeDataExport) ([]byte, error) {
 func ExportEmployeeToPDF(emp EmployeeDataExport) ([]byte, error) {
 	pdf := gofpdf.New("P", "mm", "A4", "")
 	pdf.SetTitle(fmt.Sprintf("Employee Details - %s %s", emp.Firstname, emp.Lastname), false)
-	pdf.SetAuthor("HRMS System", false)
+	pdf.SetAuthor(InstitutionName, false)
 	pdf.SetCreator("HRMS API", false)
 
 	pdf.AddPage()
+	
+	// Add logo and header
+	if err := addPDFHeader(pdf); err != nil {
+		// If logo fails, continue without it
+		pdf.SetFont("Arial", "B", 18)
+		pdf.Cell(0, 10, InstitutionName)
+		pdf.Ln(8)
+	}
+	
 	pdf.SetFont("Arial", "B", 18)
 	pdf.Cell(0, 10, "Employee Details")
 	pdf.Ln(12)

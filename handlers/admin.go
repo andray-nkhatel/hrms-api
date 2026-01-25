@@ -381,17 +381,30 @@ func CreateAdmin(c *gin.Context) {
 
 // GetEmployees returns all employees
 // @Summary Get all employees
-// @Description Get list of all employees (Admin only)
+// @Description Get list of all employees (Admin only). Supports search query parameter for filtering by name.
 // @Tags Admin - Employees
 // @Produce json
 // @Security BearerAuth
+// @Param search query string false "Search term to filter employees by name (firstname, lastname, or full name)"
 // @Success 200 {array} models.Employee
 // @Failure 401 {object} ErrorResponse
 // @Failure 403 {object} ErrorResponse
 // @Router /api/employees [get]
 func GetEmployees(c *gin.Context) {
 	var employees []models.Employee
-	if err := database.DB.Preload("Employment").
+	query := database.DB.Where("role != ?", models.RoleAdmin) // Exclude admin users
+	
+	// Support search parameter for filtering by name
+	search := c.Query("search")
+	if search != "" {
+		searchPattern := "%" + strings.ToLower(search) + "%"
+		query = query.Where(
+			"LOWER(firstname) LIKE ? OR LOWER(lastname) LIKE ? OR LOWER(CONCAT(firstname, ' ', lastname)) LIKE ?",
+			searchPattern, searchPattern, searchPattern,
+		)
+	}
+	
+	if err := query.Preload("Employment").
 		Select("id", "nrc", "username", "firstname", "lastname", "email", "department", "role", "created_at", "updated_at").
 		Find(&employees).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch employees"})

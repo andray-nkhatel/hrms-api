@@ -39,7 +39,7 @@ func LoadConfig() error {
 		Port:               getEnv("PORT", "8070"),
 		GinMode:            getEnv("GIN_MODE", "release"),
 		DocumentsPath:      getEnv("DOCUMENTS_PATH", "./uploads/documents"),
-		MaxFileSize:        int64(getEnvAsInt("MAX_FILE_SIZE_MB", 10)) * 1024 * 1024, // Default 10MB
+		MaxFileSize:        int64(getEnvAsInt("MAX_FILE_SIZE_MB", 5)) * 1024 * 1024, // Default 5MB
 	}
 
 	return nil
