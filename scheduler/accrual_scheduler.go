@@ -56,10 +56,10 @@ func processMonthlyAccruals() {
 
 	log.Printf("Processing accruals for month: %s", processMonth.Format("2006-01"))
 
-	// Get Annual leave type
-	var annualLeaveType models.LeaveType
-	if err := database.DB.Where("name = ? OR max_days = ?", "Annual", 24).First(&annualLeaveType).Error; err != nil {
-		log.Printf("❌ Error: Annual leave type not found: %v", err)
+	// Get all leave types that use balance (e.g. Annual)
+	var balanceLeaveTypes []models.LeaveType
+	if err := database.DB.Where("uses_balance = ?", true).Find(&balanceLeaveTypes).Error; err != nil || len(balanceLeaveTypes) == 0 {
+		log.Printf("❌ No leave types with uses_balance=true found")
 		return
 	}
 
@@ -74,15 +74,16 @@ func processMonthlyAccruals() {
 	errors := 0
 	var errorDetails []string
 
-	for _, emp := range employees {
-		// Use simplified accrual processing with year and month
-		if err := utils.ProcessMonthlyAccrualSimple(emp.ID, annualLeaveType.ID, previousMonth.Year(), int(previousMonth.Month())); err != nil {
-			errors++
-			errorDetails = append(errorDetails, fmt.Sprintf("Employee %d (%s %s): %v", emp.ID, emp.Firstname, emp.Lastname, err))
-			log.Printf("⚠️  Failed to process accrual for employee %d (%s %s): %v", emp.ID, emp.Firstname, emp.Lastname, err)
-			continue
+	for _, leaveType := range balanceLeaveTypes {
+		for _, emp := range employees {
+			if err := utils.ProcessMonthlyAccrualSimple(emp.ID, leaveType.ID, previousMonth.Year(), int(previousMonth.Month())); err != nil {
+				errors++
+				errorDetails = append(errorDetails, fmt.Sprintf("Employee %d (%s %s) %s: %v", emp.ID, emp.Firstname, emp.Lastname, leaveType.Name, err))
+				log.Printf("⚠️  Failed to process accrual for employee %d (%s %s) %s: %v", emp.ID, emp.Firstname, emp.Lastname, leaveType.Name, err)
+				continue
+			}
+			processed++
 		}
-		processed++
 	}
 
 	log.Printf("✅ Accrual processing completed: %d processed, %d errors", processed, errors)
@@ -99,14 +100,12 @@ func checkAndProcessPendingAccruals() {
 
 	log.Println("🔍 Checking for pending accruals...")
 
-	// Get Annual leave type
-	var annualLeaveType models.LeaveType
-	if err := database.DB.Where("name = ? OR max_days = ?", "Annual", 24).First(&annualLeaveType).Error; err != nil {
-		log.Printf("⚠️  Could not check pending accruals: Annual leave type not found")
+	var balanceLeaveTypes []models.LeaveType
+	if err := database.DB.Where("uses_balance = ?", true).Find(&balanceLeaveTypes).Error; err != nil || len(balanceLeaveTypes) == 0 {
+		log.Printf("⚠️  No leave types with uses_balance=true found")
 		return
 	}
 
-	// Get all active employees
 	var employees []models.Employee
 	if err := database.DB.Where("role != ? AND status = ?", models.RoleAdmin, "active").Find(&employees).Error; err != nil {
 		log.Printf("⚠️  Could not check pending accruals: Error fetching employees")
@@ -114,35 +113,36 @@ func checkAndProcessPendingAccruals() {
 	}
 
 	now := time.Now()
-
-	// Check if we need to process the previous month
 	previousMonth := now.AddDate(0, -1, 0)
 	prevMonthStart := time.Date(previousMonth.Year(), previousMonth.Month(), 1, 0, 0, 0, 0, time.UTC)
 
-	// Check if previous month needs processing
 	needsProcessing := false
-	for _, emp := range employees {
-		// Use Find() with Limit(1) instead of First() to avoid logging "record not found" errors
-		var accruals []models.LeaveAccrual
-		database.DB.Where("employee_id = ? AND leave_type_id = ? AND year = ? AND month = ?",
-			emp.ID, annualLeaveType.ID, previousMonth.Year(), int(previousMonth.Month())).Limit(1).Find(&accruals)
-		if len(accruals) == 0 || accruals[0].ID == 0 {
-			// No accrual record for previous month - needs processing
-			needsProcessing = true
+	for _, leaveType := range balanceLeaveTypes {
+		for _, emp := range employees {
+			var accruals []models.LeaveAccrual
+			database.DB.Where("employee_id = ? AND leave_type_id = ? AND year = ? AND month = ?",
+				emp.ID, leaveType.ID, previousMonth.Year(), int(previousMonth.Month())).Limit(1).Find(&accruals)
+			if len(accruals) == 0 || accruals[0].ID == 0 {
+				needsProcessing = true
+				break
+			}
+		}
+		if needsProcessing {
 			break
 		}
 	}
 
 	if needsProcessing {
 		log.Printf("📅 Found pending accruals for %s - processing now...", prevMonthStart.Format("2006-01"))
-
 		processed := 0
-		for _, emp := range employees {
-			if err := utils.ProcessMonthlyAccrualSimple(emp.ID, annualLeaveType.ID, previousMonth.Year(), int(previousMonth.Month())); err != nil {
-				log.Printf("⚠️  Failed to process accrual for employee %d: %v", emp.ID, err)
-				continue
+		for _, leaveType := range balanceLeaveTypes {
+			for _, emp := range employees {
+				if err := utils.ProcessMonthlyAccrualSimple(emp.ID, leaveType.ID, previousMonth.Year(), int(previousMonth.Month())); err != nil {
+					log.Printf("⚠️  Failed to process accrual for employee %d: %v", emp.ID, err)
+					continue
+				}
+				processed++
 			}
-			processed++
 		}
 		log.Printf("✅ Processed %d pending accruals for %s", processed, prevMonthStart.Format("2006-01"))
 	} else {

@@ -11,6 +11,7 @@ type LeaveType struct {
 	Name                  string         `gorm:"size:50;not null" json:"name"`
 	AccrualRate           float64        `gorm:"not null;default:2.0" json:"accrual_rate"` // Days per month (e.g., 2.0)
 	MaxDays               int            `gorm:"not null" json:"max_days"`
+	UsesBalance           bool           `gorm:"default:false" json:"uses_balance"`                      // If true, leave is deducted from accrual/carry-over balance; if false, leave is record-only
 	AllowCarryOver        bool           `gorm:"default:false" json:"allow_carry_over"`                // Whether carry-over is allowed
 	MaxCarryOverDays      *float64       `gorm:"default:0" json:"max_carry_over_days,omitempty"`       // Maximum days that can be carried over (nil = unlimited)
 	CarryOverExpiryMonths *int           `gorm:"default:12" json:"carry_over_expiry_months,omitempty"` // Months before carry-over expires (nil = no expiry)

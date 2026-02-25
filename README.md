@@ -109,7 +109,8 @@ Content-Type: application/json
   "employee": {
     "id": 1,
     "nrc": "123456/78/9",
-    "firstname": "John",
+
+"firstname": "John",
     "lastname": "Doe",
     "email": "john@example.com",
     "department": "IT",

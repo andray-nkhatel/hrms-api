@@ -306,46 +306,47 @@ func BulkCreateLeaves(c *gin.Context) {
 			return
 		}
 
-		// Ensure accruals are up to date for annual leave
-		if leaveType.Name == "Annual" || leaveType.MaxDays == 24 {
+		var leaveDuration float64
+		if leaveType.UsesBalance {
 			utils.EnsureAccrualsUpToDate(employee.ID, leaveType.ID)
-		}
 
-		// Check balance
-		balance, err := utils.GetCurrentLeaveBalance(employee.ID, leaveType.ID)
-		if err != nil {
-			if skipInvalid {
-				failed++
-				results = append(results, BulkLeaveCreateResult{
-					RowNumber:    rowNum - 1,
-					EmployeeName: employeeName,
-					Success:      false,
-					Error:        "Failed to calculate leave balance: " + err.Error(),
+			balance, err := utils.GetCurrentLeaveBalance(employee.ID, leaveType.ID)
+			if err != nil {
+				if skipInvalid {
+					failed++
+					results = append(results, BulkLeaveCreateResult{
+						RowNumber:    rowNum - 1,
+						EmployeeName: employeeName,
+						Success:      false,
+						Error:        "Failed to calculate leave balance: " + err.Error(),
+					})
+					continue
+				}
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": fmt.Sprintf("Row %d: Failed to calculate leave balance", rowNum-1),
 				})
-				continue
+				return
 			}
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("Row %d: Failed to calculate leave balance", rowNum-1),
-			})
-			return
-		}
 
-		leaveDuration := float64(int(endDate.Sub(startDate).Hours()/24) + 1)
-		if leaveDuration > balance {
-			if skipInvalid {
-				failed++
-				results = append(results, BulkLeaveCreateResult{
-					RowNumber:    rowNum - 1,
-					EmployeeName: employeeName,
-					Success:      false,
-					Error:        fmt.Sprintf("Insufficient balance: %.2f available, %.2f requested", balance, leaveDuration),
+			leaveDuration = float64(int(endDate.Sub(startDate).Hours()/24) + 1)
+			if leaveDuration > balance {
+				if skipInvalid {
+					failed++
+					results = append(results, BulkLeaveCreateResult{
+						RowNumber:    rowNum - 1,
+						EmployeeName: employeeName,
+						Success:      false,
+						Error:        fmt.Sprintf("Insufficient balance: %.2f available, %.2f requested", balance, leaveDuration),
+					})
+					continue
+				}
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": fmt.Sprintf("Row %d: Insufficient leave balance for %s", rowNum-1, employeeName),
 				})
-				continue
+				return
 			}
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Sprintf("Row %d: Insufficient leave balance for %s", rowNum-1, employeeName),
-			})
-			return
+		} else {
+			leaveDuration = float64(int(endDate.Sub(startDate).Hours()/24) + 1)
 		}
 
 		// Create leave record (default to Approved for admin-created leaves)
@@ -378,19 +379,13 @@ func BulkCreateLeaves(c *gin.Context) {
 			return
 		}
 
-		// Update carry-over usage if carry-over is enabled
-		if leaveType.AllowCarryOver {
-			utils.UpdateCarryOverUsage(employee.ID, leaveType.ID, leaveDuration)
-		}
-
-		// If leave is approved and is annual leave, reprocess accruals to update balance
-		if leave.Status == models.StatusApproved {
-			if leaveType.Name == "Annual" || leaveType.MaxDays == 24 {
-				// Reprocess accruals to update DaysUsed and DaysBalance
-				// This ensures the balance reflects the newly created approved leave
+		if leaveType.UsesBalance {
+			if leaveType.AllowCarryOver {
+				utils.UpdateCarryOverUsage(employee.ID, leaveType.ID, leaveDuration)
+			}
+			if leave.Status == models.StatusApproved {
 				if err := utils.EnsureAccrualsUpToDate(employee.ID, leaveType.ID); err != nil {
-					// Log error but don't fail the creation - the leave is already created
-					// The balance will be corrected on next accrual run or manual adjustment
+					// Log error but don't fail the creation
 				}
 			}
 		}
@@ -508,35 +503,35 @@ func BulkCreateLeavesFromTemplate(c *gin.Context) {
 			continue
 		}
 
-		// Ensure accruals are up to date
-		if leaveType.Name == "Annual" || leaveType.MaxDays == 24 {
+		if leaveType.UsesBalance {
 			utils.EnsureAccrualsUpToDate(employeeID, leaveType.ID)
-		}
 
-		// Check balance
-		balance, err := utils.GetCurrentLeaveBalance(employeeID, leaveType.ID)
-		if err != nil {
-			failed++
-			results = append(results, BulkLeaveCreateResult{
-				RowNumber:    i + 1,
-				EmployeeName: employee.Firstname + " " + employee.Lastname,
-				Success:      false,
-				Error:        "Failed to calculate balance",
-			})
-			continue
+			balance, err := utils.GetCurrentLeaveBalance(employeeID, leaveType.ID)
+			if err != nil {
+				failed++
+				results = append(results, BulkLeaveCreateResult{
+					RowNumber:    i + 1,
+					EmployeeName: employee.Firstname + " " + employee.Lastname,
+					Success:      false,
+					Error:        "Failed to calculate balance",
+				})
+				continue
+			}
+
+			leaveDuration := float64(int(endDate.Sub(startDate).Hours()/24) + 1)
+			if leaveDuration > balance {
+				failed++
+				results = append(results, BulkLeaveCreateResult{
+					RowNumber:    i + 1,
+					EmployeeName: employee.Firstname + " " + employee.Lastname,
+					Success:      false,
+					Error:        fmt.Sprintf("Insufficient balance: %.2f available", balance),
+				})
+				continue
+			}
 		}
 
 		leaveDuration := float64(int(endDate.Sub(startDate).Hours()/24) + 1)
-		if leaveDuration > balance {
-			failed++
-			results = append(results, BulkLeaveCreateResult{
-				RowNumber:    i + 1,
-				EmployeeName: employee.Firstname + " " + employee.Lastname,
-				Success:      false,
-				Error:        fmt.Sprintf("Insufficient balance: %.2f available", balance),
-			})
-			continue
-		}
 
 		// Create leave
 		now := time.Now()
@@ -562,8 +557,7 @@ func BulkCreateLeavesFromTemplate(c *gin.Context) {
 			continue
 		}
 
-		// Update carry-over usage
-		if leaveType.AllowCarryOver {
+		if leaveType.UsesBalance && leaveType.AllowCarryOver {
 			utils.UpdateCarryOverUsage(employeeID, leaveType.ID, leaveDuration)
 		}
 

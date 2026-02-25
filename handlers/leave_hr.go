@@ -2627,43 +2627,39 @@ func CreateLeaveForEmployee(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	adminID := userID.(uint)
 
-	// If status is Approved, check balance and set approver
+	// If status is Approved and leave type uses balance, check balance and set approver; record-only types skip balance
 	var approvedBy *uint
 	var approvedAt *time.Time
 	if status == models.StatusApproved {
-		// Ensure accruals are up to date for annual leave
-		if leaveType.Name == "Annual" || leaveType.MaxDays == 24 {
+		if leaveType.UsesBalance {
 			utils.EnsureAccrualsUpToDate(req.EmployeeID, req.LeaveTypeID)
-		}
 
-		// Check balance (includes carry-over)
-		balance, err := utils.GetCurrentLeaveBalance(req.EmployeeID, req.LeaveTypeID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate leave balance"})
-			return
-		}
+			balance, err := utils.GetCurrentLeaveBalance(req.EmployeeID, req.LeaveTypeID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate leave balance"})
+				return
+			}
 
-		leaveDuration := float64(int(endDate.Sub(startDate).Hours()/24) + 1)
-		if leaveDuration > balance {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":           "Insufficient leave balance",
-				"current_balance": balance,
-				"requested_days":  leaveDuration,
-				"message":         fmt.Sprintf("Insufficient leave balance. Available: %.2f days, Requested: %.2f days.", balance, leaveDuration),
-			})
-			return
-		}
+			leaveDuration := float64(int(endDate.Sub(startDate).Hours()/24) + 1)
+			if leaveDuration > balance {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error":           "Insufficient leave balance",
+					"current_balance": balance,
+					"requested_days":  leaveDuration,
+					"message":         fmt.Sprintf("Insufficient leave balance. Available: %.2f days, Requested: %.2f days.", balance, leaveDuration),
+				})
+				return
+			}
 
+			if leaveType.AllowCarryOver {
+				if err := utils.UpdateCarryOverUsage(req.EmployeeID, req.LeaveTypeID, leaveDuration); err != nil {
+					// Log error but don't fail the creation
+				}
+			}
+		}
 		approvedBy = &adminID
 		now := time.Now()
 		approvedAt = &now
-
-		// Update carry-over usage if carry-over is enabled
-		if leaveType.AllowCarryOver {
-			if err := utils.UpdateCarryOverUsage(req.EmployeeID, req.LeaveTypeID, leaveDuration); err != nil {
-				// Log error but don't fail the creation
-			}
-		}
 	}
 
 	// Handle leave form file upload - REQUIRED
@@ -2753,15 +2749,9 @@ func CreateLeaveForEmployee(c *gin.Context) {
 		// For now, we'll keep the current structure
 	}
 
-	// If leave is approved, reprocess accruals to update balance
-	// This ensures DaysUsed and DaysBalance in accrual records reflect the new approved leave
-	if status == models.StatusApproved {
-		if leaveType.Name == "Annual" || leaveType.MaxDays == 24 {
-			// Reprocess accruals to update DaysUsed and DaysBalance
-			if err := utils.EnsureAccrualsUpToDate(req.EmployeeID, req.LeaveTypeID); err != nil {
-				// Log error but don't fail the creation - the leave is already created
-				// The balance will be corrected on next accrual run or manual adjustment
-			}
+	if status == models.StatusApproved && leaveType.UsesBalance {
+		if err := utils.EnsureAccrualsUpToDate(req.EmployeeID, req.LeaveTypeID); err != nil {
+			// Log error but don't fail the creation
 		}
 	}
 
@@ -2932,45 +2922,40 @@ func UpdateLeaveForEmployee(c *gin.Context) {
 			leave.ApprovedAt = nil
 			leave.RejectionReason = ""
 		case string(models.StatusApproved):
-			// If changing to approved, check balance and set approver
 			if oldStatus != string(models.StatusApproved) {
-				// Ensure accruals are up to date for annual leave
-				if leave.LeaveType.Name == "Annual" || leave.LeaveType.MaxDays == 24 {
+				if leave.LeaveType.UsesBalance {
 					utils.EnsureAccrualsUpToDate(leave.EmployeeID, leave.LeaveTypeID)
-				}
 
-				// Check balance (includes carry-over)
-				balance, err := utils.GetAvailableLeaveBalance(leave.EmployeeID, leave.LeaveTypeID, &leave.ID, &leave.StartDate)
-				if err != nil {
-					balance, err = utils.GetCurrentLeaveBalance(leave.EmployeeID, leave.LeaveTypeID)
+					balance, err := utils.GetAvailableLeaveBalance(leave.EmployeeID, leave.LeaveTypeID, &leave.ID, &leave.StartDate)
 					if err != nil {
-						c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate leave balance"})
+						balance, err = utils.GetCurrentLeaveBalance(leave.EmployeeID, leave.LeaveTypeID)
+						if err != nil {
+							c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate leave balance"})
+							return
+						}
+					}
+
+					leaveDuration := float64(leave.GetDuration())
+					if leaveDuration > balance {
+						c.JSON(http.StatusBadRequest, gin.H{
+							"error":           "Insufficient leave balance",
+							"current_balance": balance,
+							"requested_days":  leaveDuration,
+							"message":         fmt.Sprintf("Insufficient leave balance. Available: %.2f days, Requested: %.2f days.", balance, leaveDuration),
+						})
 						return
 					}
-				}
 
-				leaveDuration := float64(leave.GetDuration())
-				if leaveDuration > balance {
-					c.JSON(http.StatusBadRequest, gin.H{
-						"error":           "Insufficient leave balance",
-						"current_balance": balance,
-						"requested_days":  leaveDuration,
-						"message":         fmt.Sprintf("Insufficient leave balance. Available: %.2f days, Requested: %.2f days.", balance, leaveDuration),
-					})
-					return
+					if leave.LeaveType.AllowCarryOver {
+						if err := utils.UpdateCarryOverUsage(leave.EmployeeID, leave.LeaveTypeID, leaveDuration); err != nil {
+							// Log error but don't fail the update
+						}
+					}
 				}
-
 				leave.ApprovedBy = &adminID
 				now := time.Now()
 				leave.ApprovedAt = &now
 				leave.RejectionReason = ""
-
-				// Update carry-over usage if carry-over is enabled
-				if leave.LeaveType.AllowCarryOver {
-					if err := utils.UpdateCarryOverUsage(leave.EmployeeID, leave.LeaveTypeID, leaveDuration); err != nil {
-						// Log error but don't fail the update
-					}
-				}
 			}
 			leave.Status = models.StatusApproved
 		case string(models.StatusRejected):
@@ -3000,17 +2985,9 @@ func UpdateLeaveForEmployee(c *gin.Context) {
 		return
 	}
 
-	// Reprocess accruals to update balance when leave status changes
-	// This ensures DaysUsed and DaysBalance in accrual records reflect the current leave status
-	if leave.LeaveType.Name == "Annual" || leave.LeaveType.MaxDays == 24 {
-		// If leave was approved (newly or already), or if it was previously approved and is now cancelled/rejected,
-		// reprocess accruals to update the balance
-		if leave.Status == models.StatusApproved || oldStatus == string(models.StatusApproved) {
-			// Reprocess accruals to update DaysUsed and DaysBalance
-			if err := utils.EnsureAccrualsUpToDate(leave.EmployeeID, leave.LeaveTypeID); err != nil {
-				// Log error but don't fail the update - the leave is already updated
-				// The balance will be corrected on next accrual run or manual adjustment
-			}
+	if leave.LeaveType.UsesBalance && (leave.Status == models.StatusApproved || oldStatus == string(models.StatusApproved)) {
+		if err := utils.EnsureAccrualsUpToDate(leave.EmployeeID, leave.LeaveTypeID); err != nil {
+			// Log error but don't fail the update
 		}
 	}
 

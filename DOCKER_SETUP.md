@@ -1,6 +1,6 @@
 # HRMS Docker Setup Guide
 
-This guide explains how to run the HRMS system using Docker containers.
+This guide explains how to run the HRMS system (API + Vue client) using Docker containers.
 
 ## Prerequisites
 
@@ -8,26 +8,44 @@ This guide explains how to run the HRMS system using Docker containers.
 - Docker Compose 2.0+
 - At least 2GB of free disk space
 - At least 512MB of RAM available
+- **Both repos**: `hrms-api` (this repo) and `hrmsclient` (Vue frontend) as **sibling directories**
 
-## Quick Start
+## Directory layout (required for API + client)
 
-1. **Clone the repository** (if not already done):
+The image builds the Vue client and serves it from the API. The build context must include both repos:
+
+```
+Sources/          (or any parent folder)
+├── hrms-api/     ← this repo
+└── hrmsclient/   ← Vue frontend repo (clone next to hrms-api)
+```
+
+## Quick Start (run both API and client)
+
+1. **Clone both repositories as siblings**:
    ```bash
-   git clone <repository-url>
-   cd Sources
+   cd Sources   # or your parent folder
+   git clone <hrms-api-repo-url> hrms-api
+   git clone <hrmsclient-repo-url> hrmsclient
    ```
 
-2. **Create environment file**:
+2. **Create environment file** (in `hrms-api`):
    ```bash
    cd hrms-api
    cp .env.example .env
    # Edit .env and set your JWT_SECRET and database password
    ```
 
-3. **Start all services**:
+3. **Start all services** (from `hrms-api`):
    ```bash
-   docker-compose -f docker-compose.prod.yml up -d
+   ./docker-start.sh
    ```
+   The script switches to the parent directory so Docker can see both `hrms-api` and `hrmsclient`, then runs Compose.  
+   Or manually from the **parent** of `hrms-api`:
+   ```bash
+   docker compose -f hrms-api/docker-compose.yml up -d
+   ```
+   From inside `hrms-api`: `docker compose up -d` (build context is still the parent).
 
 4. **Access the application**:
    - Frontend + API: http://localhost:8070
@@ -59,39 +77,42 @@ openssl rand -base64 32
 
 ## Docker Compose Commands
 
+Run these from the **parent directory** of `hrms-api` (the folder that contains both `hrms-api` and `hrmsclient`), or use `./docker-start.sh` from `hrms-api` for start.
+
 ### Start services
 ```bash
-docker compose -f docker-compose.prod.yml up -d
+# From parent of hrms-api:
+docker compose -f hrms-api/docker-compose.prod.yml up -d
 ```
 
 ### Stop services
 ```bash
-docker compose -f docker-compose.prod.yml down
+docker compose -f hrms-api/docker-compose.prod.yml down
 ```
 
 ### View logs
 ```bash
 # All services
-docker compose -f docker-compose.prod.yml logs -f
+docker compose -f hrms-api/docker-compose.prod.yml logs -f
 
 # Specific service
-docker compose -f docker-compose.prod.yml logs -f hrms-api
-docker compose -f docker-compose.prod.yml logs -f postgres
+docker compose -f hrms-api/docker-compose.prod.yml logs -f hrms-api
+docker compose -f hrms-api/docker-compose.prod.yml logs -f postgres
 ```
 
 ### Restart services
 ```bash
-docker compose -f docker-compose.prod.yml restart
+docker compose -f hrms-api/docker-compose.prod.yml restart
 ```
 
-### Rebuild and restart
+### Rebuild and restart (e.g. after client or API changes)
 ```bash
-docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f hrms-api/docker-compose.prod.yml up -d --build
 ```
 
 ### Stop and remove volumes (⚠️ deletes database)
 ```bash
-docker compose -f docker-compose.prod.yml down -v
+docker compose -f hrms-api/docker-compose.prod.yml down -v
 ```
 
 ## Architecture
@@ -162,34 +183,35 @@ server {
 ### Container won't start
 
 ```bash
-# Check logs
-docker-compose -f docker-compose.prod.yml logs
+# Check logs (from parent of hrms-api)
+docker compose -f hrms-api/docker-compose.prod.yml logs
 
 # Check if port is already in use
-netstat -tlnp | grep 8070
+ss -tlnp | grep 8070
 ```
 
 ### Database connection errors
 
 ```bash
 # Check if postgres is healthy
-docker-compose -f docker-compose.prod.yml ps
+docker compose -f hrms-api/docker-compose.prod.yml ps
 
 # Check postgres logs
-docker-compose -f docker-compose.prod.yml logs postgres
+docker compose -f hrms-api/docker-compose.prod.yml logs postgres
 ```
 
 ### Rebuild from scratch
 
 ```bash
-# Stop and remove everything
-docker-compose -f docker-compose.prod.yml down -v
+# From parent of hrms-api: stop and remove everything
+docker compose -f hrms-api/docker-compose.prod.yml down -v
 
-# Remove images
-docker rmi hrms-api_hrms-api
+# Remove the API image (image name may vary by project dir name)
+docker images | grep hrms
+docker rmi <hrms-api-image-name>
 
 # Rebuild
-docker-compose -f docker-compose.prod.yml up -d --build
+docker compose -f hrms-api/docker-compose.prod.yml up -d --build
 ```
 
 ### Access database directly
@@ -212,10 +234,10 @@ After first startup, the following test accounts are created:
 
 ### Health Checks
 
-Both services have health checks configured. Check status:
+Both services have health checks configured. Check status (from parent of hrms-api):
 
 ```bash
-docker-compose -f docker-compose.prod.yml ps
+docker compose -f hrms-api/docker-compose.prod.yml ps
 ```
 
 ### Resource Usage
@@ -229,17 +251,17 @@ docker stats hrms-api hrms-postgres
 To update to a new version:
 
 ```bash
-# Pull latest code
-git pull
+# From parent of hrms-api: pull latest in both repos
+cd hrms-api && git pull && cd ../hrmsclient && git pull && cd ..
 
 # Rebuild and restart
-docker-compose -f docker-compose.prod.yml up -d --build
+docker compose -f hrms-api/docker-compose.prod.yml up -d --build
 ```
 
 ## Support
 
-For issues, check:
-- Application logs: `docker-compose -f docker-compose.prod.yml logs hrms-api`
-- Database logs: `docker-compose -f docker-compose.prod.yml logs postgres`
-- Container status: `docker-compose -f docker-compose.prod.yml ps`
+For issues, check (run from parent of hrms-api):
+- Application logs: `docker compose -f hrms-api/docker-compose.prod.yml logs hrms-api`
+- Database logs: `docker compose -f hrms-api/docker-compose.prod.yml logs postgres`
+- Container status: `docker compose -f hrms-api/docker-compose.prod.yml ps`
 

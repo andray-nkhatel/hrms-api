@@ -70,6 +70,9 @@ func Migrate() error {
 }
 
 func SeedData() error {
+	// Ensure existing Annual leave type has UsesBalance = true (for DBs created before UsesBalance column)
+	DB.Model(&models.LeaveType{}).Where("name = ? OR max_days = ?", "Annual", 24).Update("uses_balance", true)
+
 	// Seed Leave Types (only if they don't exist)
 	var leaveTypeCount int64
 	DB.Model(&models.LeaveType{}).Count(&leaveTypeCount)
@@ -78,18 +81,19 @@ func SeedData() error {
 		expiryMonths := 3   // Carry-over expires 3 months into next year (end of Q1)
 
 		leaveTypes := []models.LeaveType{
-			{Name: "Sick", AccrualRate: 0, MaxDays: 3},
-			{Name: "Compassionate", AccrualRate: 0, MaxDays: 7},
+			{Name: "Sick", AccrualRate: 0, MaxDays: 3, UsesBalance: false},
+			{Name: "Compassionate", AccrualRate: 0, MaxDays: 7, UsesBalance: false},
 			{
 				Name:                  "Annual",
 				AccrualRate:           2.0, // 2 days per month
 				MaxDays:               24,  // 24 days/year, accrues 2 days/month
+				UsesBalance:           true,
 				AllowCarryOver:        true,
 				MaxCarryOverDays:      &maxCarryOver,
 				CarryOverExpiryMonths: &expiryMonths,
 			},
-			{Name: "Maternity", AccrualRate: 0, MaxDays: 90},
-			{Name: "Paternity", AccrualRate: 0, MaxDays: 7},
+			{Name: "Maternity", AccrualRate: 0, MaxDays: 90, UsesBalance: false},
+			{Name: "Paternity", AccrualRate: 0, MaxDays: 7, UsesBalance: false},
 		}
 
 		for _, lt := range leaveTypes {

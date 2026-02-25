@@ -89,44 +89,38 @@ func ApplyLeave(c *gin.Context) {
 		return
 	}
 
-	// Ensure accruals are up to date for annual leave
-	var leaveTypeCheck models.LeaveType
-	if err := database.DB.First(&leaveTypeCheck, req.LeaveTypeID).Error; err == nil {
-		if leaveTypeCheck.Name == "Annual" || leaveTypeCheck.MaxDays == 24 {
-			utils.EnsureAccrualsUpToDate(employeeID, req.LeaveTypeID)
-		}
-	}
+	// Only check balance and accrual for leave types that use balance (e.g. Annual); record-only types are just added
+	if leaveType.UsesBalance {
+		utils.EnsureAccrualsUpToDate(employeeID, req.LeaveTypeID)
 
-	// Check leave balance
-	// For annual leave with future start dates, calculate projected balance at start date
-	var balance float64
-	if (leaveType.Name == "Annual" || leaveType.MaxDays == 24) && startDate.After(time.Now()) {
-		// Calculate projected balance at the start date of the leave (includes carry-over)
-		projectedBalance, err := utils.CalculateProjectedAnnualLeaveBalance(employeeID, req.LeaveTypeID, startDate)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate projected leave balance"})
+		// For annual leave with future start dates, calculate projected balance at start date
+		var balance float64
+		if startDate.After(time.Now()) {
+			projectedBalance, err := utils.CalculateProjectedAnnualLeaveBalance(employeeID, req.LeaveTypeID, startDate)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate projected leave balance"})
+				return
+			}
+			balance = projectedBalance
+		} else {
+			var err error
+			balance, err = utils.GetCurrentLeaveBalance(employeeID, req.LeaveTypeID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate leave balance"})
+				return
+			}
+		}
+
+		leaveDuration := float64(int(endDate.Sub(startDate).Hours()/24) + 1)
+		if leaveDuration > balance {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":           utils.ErrInsufficientBalance.Error(),
+				"current_balance": balance,
+				"requested_days":  leaveDuration,
+				"message":         fmt.Sprintf("Insufficient leave balance. You have %.2f days available, but requested %.2f days.", balance, leaveDuration),
+			})
 			return
 		}
-		balance = projectedBalance
-	} else {
-		// Use current balance for immediate leaves or non-annual leave types (includes carry-over)
-		var err error
-		balance, err = utils.GetCurrentLeaveBalance(employeeID, req.LeaveTypeID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate leave balance"})
-			return
-		}
-	}
-
-	leaveDuration := float64(int(endDate.Sub(startDate).Hours()/24) + 1)
-	if leaveDuration > balance {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":           utils.ErrInsufficientBalance.Error(),
-			"current_balance": balance,
-			"requested_days":  leaveDuration,
-			"message":         fmt.Sprintf("Insufficient leave balance. You have %.2f days available, but requested %.2f days.", balance, leaveDuration),
-		})
-		return
 	}
 
 	// Create leave request
@@ -289,35 +283,30 @@ func ApproveLeave(c *gin.Context) {
 		return
 	}
 
-	// Ensure accruals are up to date for annual leave
-	if leave.LeaveType.Name == "Annual" || leave.LeaveType.MaxDays == 24 {
+	// Only check balance and update carry-over for leave types that use balance; record-only types are just approved
+	if leave.LeaveType.UsesBalance {
 		utils.EnsureAccrualsUpToDate(leave.EmployeeID, leave.LeaveTypeID)
-	}
 
-	// Check balance again before approving (includes carry-over)
-	// Use available balance which accounts for other pending leaves (excluding this one)
-	// For future-dated leaves, this uses projected balance; for current/past-dated, uses current balance
-	targetDate := &leave.StartDate
-	balance, err := utils.GetAvailableLeaveBalance(leave.EmployeeID, leave.LeaveTypeID, &leave.ID, targetDate)
-	if err != nil {
-		// Fallback: if available balance calculation fails, use current balance
-		// This can happen if there's an issue with the calculation
-		balance, err = utils.GetCurrentLeaveBalance(leave.EmployeeID, leave.LeaveTypeID)
+		targetDate := &leave.StartDate
+		balance, err := utils.GetAvailableLeaveBalance(leave.EmployeeID, leave.LeaveTypeID, &leave.ID, targetDate)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate leave balance"})
+			balance, err = utils.GetCurrentLeaveBalance(leave.EmployeeID, leave.LeaveTypeID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate leave balance"})
+				return
+			}
+		}
+
+		leaveDuration := float64(leave.GetDuration())
+		if leaveDuration > balance {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":           "Insufficient leave balance",
+				"current_balance": balance,
+				"requested_days":  leaveDuration,
+				"message":         fmt.Sprintf("Insufficient leave balance. Available: %.2f days, Requested: %.2f days.", balance, leaveDuration),
+			})
 			return
 		}
-	}
-
-	leaveDuration := float64(leave.GetDuration())
-	if leaveDuration > balance {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":           "Insufficient leave balance",
-			"current_balance": balance,
-			"requested_days":  leaveDuration,
-			"message":         fmt.Sprintf("Insufficient leave balance. Available: %.2f days, Requested: %.2f days.", balance, leaveDuration),
-		})
-		return
 	}
 
 	oldStatus := string(leave.Status)
@@ -331,11 +320,12 @@ func ApproveLeave(c *gin.Context) {
 		return
 	}
 
-	// Update carry-over usage if carry-over is enabled
-	if leave.LeaveType.AllowCarryOver {
-		if err := utils.UpdateCarryOverUsage(leave.EmployeeID, leave.LeaveTypeID, leaveDuration); err != nil {
-			// Log error but don't fail the approval
-			// In production, you might want to log this to a monitoring system
+	if leave.LeaveType.UsesBalance {
+		leaveDuration := float64(leave.GetDuration())
+		if leave.LeaveType.AllowCarryOver {
+			if err := utils.UpdateCarryOverUsage(leave.EmployeeID, leave.LeaveTypeID, leaveDuration); err != nil {
+				// Log error but don't fail the approval
+			}
 		}
 	}
 

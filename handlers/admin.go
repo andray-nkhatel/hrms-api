@@ -17,8 +17,9 @@ import (
 
 // CreateLeaveTypeRequest represents data for creating a leave type
 type CreateLeaveTypeRequest struct {
-	Name    string `json:"name" binding:"required" example:"Sabbatical"`
-	MaxDays int    `json:"max_days" binding:"required,min=1" example:"30"`
+	Name        string `json:"name" binding:"required" example:"Sabbatical"`
+	MaxDays     int    `json:"max_days" binding:"required,min=1" example:"30"`
+	UsesBalance *bool  `json:"uses_balance,omitempty" example:"false"` // If true, leave deducts from balance; if false, record-only. Default false for new types.
 }
 
 // CreateEmployeeRequest represents data for creating an employee/manager (uses NRC)
@@ -146,6 +147,9 @@ func UpdateLeaveType(c *gin.Context) {
 
 	leaveType.Name = req.Name
 	leaveType.MaxDays = req.MaxDays
+	if req.UsesBalance != nil {
+		leaveType.UsesBalance = *req.UsesBalance
+	}
 
 	if err := database.DB.Save(&leaveType).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update leave type"})

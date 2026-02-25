@@ -46,8 +46,8 @@ func CalculateLeaveBalance(employeeID uint, leaveTypeID uint) (int, error) {
 		return 0, err
 	}
 
-	// For Annual leave, use accrual-based calculation
-	if leaveType.Name == "Annual" || leaveType.MaxDays == 24 {
+	// For leave types that use balance (e.g. Annual), use accrual-based calculation
+	if leaveType.UsesBalance {
 		balance, err := GetCurrentLeaveBalance(employeeID, leaveTypeID)
 		if err != nil {
 			return 0, err

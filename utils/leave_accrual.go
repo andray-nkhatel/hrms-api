@@ -24,8 +24,8 @@ func CalculateProjectedAnnualLeaveBalance(employeeID uint, leaveTypeID uint, tar
 		return 0, err
 	}
 
-	// For annual leave, use accrual-based calculation (consistent with GetCurrentLeaveBalance)
-	if leaveType.Name == "Annual" || leaveType.MaxDays == 24 {
+	// For leave types that use balance (e.g. Annual), use accrual-based calculation
+	if leaveType.UsesBalance {
 		// Calculate projected accrued by target date
 		projectedAccrued, err := CalculateAnnualLeaveAccrued(employeeID, leaveTypeID, targetDate)
 		if err != nil {
@@ -336,9 +336,8 @@ func GetCurrentLeaveBalance(employeeID uint, leaveTypeID uint) (float64, error) 
 
 	var baseBalance float64
 
-	// For annual leave, use accrual records to get the actual balance
-	// This ensures manual adjustments are reflected
-	if leaveType.Name == "Annual" || leaveType.MaxDays == 24 {
+	// For leave types that use balance (e.g. Annual), use accrual records
+	if leaveType.UsesBalance {
 		// Ensure accruals are up to date first
 		if err := EnsureAccrualsUpToDate(employeeID, leaveTypeID); err != nil {
 			return 0, err
@@ -542,9 +541,9 @@ func GetCurrentYearLeaveBalance(employeeID uint, leaveTypeID uint) (float64, err
 		return 0, err
 	}
 
-	// Only applicable to annual leave
-	if leaveType.Name != "Annual" && leaveType.MaxDays != 24 {
-		return 0, fmt.Errorf("this function is only for annual leave")
+	// Only applicable to leave types that use balance (e.g. Annual)
+	if !leaveType.UsesBalance {
+		return 0, fmt.Errorf("this function is only for leave types that use balance")
 	}
 
 	// Ensure accruals are up to date

@@ -1,13 +1,32 @@
 #!/bin/bash
 
 # HRMS Docker Startup Script
-# This script helps you start the HRMS system with Docker
+# Runs API + client (Vue) in Docker. Build context is parent directory so both
+# hrms-api and hrmsclient must be siblings, e.g.:
+#   Sources/
+#     hrms-api/   (this repo)
+#     hrmsclient/ (Vue frontend)
+# Run from hrms-api: ./docker-start.sh
 
 set -e
 
-echo "🚀 HRMS Docker Setup"
-echo "==================="
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+echo "🚀 HRMS Docker Setup (API + Client)"
+echo "==================================="
 echo ""
+
+# Build context for docker-compose.prod.yml is parent dir (..) so client can be built
+if [ ! -d "../hrmsclient" ]; then
+    echo "❌ Client repo not found. The Docker build expects API and client as siblings:"
+    echo "   $(dirname "$SCRIPT_DIR")/"
+    echo "     hrms-api/    (this repo)"
+    echo "     hrmsclient/  (Vue frontend)"
+    echo ""
+    echo "Clone the client next to hrms-api, then run this script again."
+    exit 1
+fi
 
 # Check if .env file exists
 if [ ! -f .env ]; then
@@ -57,20 +76,24 @@ else
     COMPOSE_CMD="docker-compose"
 fi
 
-echo "📦 Starting HRMS services..."
+echo "📦 Starting HRMS services (API + client build from ../hrmsclient)..."
 echo ""
 
-# Start services
-$COMPOSE_CMD -f docker-compose.prod.yml up -d
+# Run from parent so build context (..) includes both hrms-api and hrmsclient
+PARENT_DIR="$(cd .. && pwd)"
+cd "$PARENT_DIR"
+COMPOSE_FILE="hrms-api/docker-compose.yml"
+
+$COMPOSE_CMD -f "$COMPOSE_FILE" up -d
 
 echo ""
 echo "⏳ Waiting for services to be healthy..."
 sleep 5
 
-# Check service status
+# Check service status (same project as up)
 echo ""
 echo "📊 Service Status:"
-$COMPOSE_CMD -f docker-compose.prod.yml ps
+$COMPOSE_CMD -f "$COMPOSE_FILE" ps
 
 echo ""
 echo "✅ HRMS is starting up!"
@@ -80,10 +103,10 @@ echo "   - Frontend + API: http://localhost:8070"
 echo "   - Swagger Docs:   http://localhost:8070/swagger/index.html"
 echo "   - Health Check:   http://localhost:8070/health"
 echo ""
-echo "📝 View logs with:"
-echo "   $COMPOSE_CMD -f docker-compose.prod.yml logs -f"
+echo "📝 View logs (run from $(basename "$PARENT_DIR")/):"
+echo "   $COMPOSE_CMD -f $COMPOSE_FILE logs -f"
 echo ""
-echo "🛑 Stop services with:"
-echo "   $COMPOSE_CMD -f docker-compose.prod.yml down"
+echo "🛑 Stop services (run from $(basename "$PARENT_DIR")/):"
+echo "   $COMPOSE_CMD -f $COMPOSE_FILE down"
 echo ""
 
