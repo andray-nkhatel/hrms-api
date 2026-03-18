@@ -39,7 +39,7 @@ services:
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       DB_NAME: ${DB_NAME:-hrms_db}
-      JWT_SECRET: ${JWT_SECRET:-change-this-secret-key-in-production}
+      JWT_SECRET: ${JWT_SECRET:-9fdfidjfijsdmksamkanvc8ea8uqrf3mkefoekvveavl0vikeofvie9s}
       JWT_EXPIRATION_HOURS: ${JWT_EXPIRATION_HOURS:-24}
       PORT: 8070
       GIN_MODE: ${GIN_MODE:-release}

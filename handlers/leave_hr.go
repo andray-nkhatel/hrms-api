@@ -477,8 +477,11 @@ func ProcessMonthlyAccruals(c *gin.Context) {
 	// Get employees to process
 	var employees []models.Employee
 	if len(req.EmployeeIDs) > 0 {
-		// Process only selected employees
-		if err := database.DB.Where("id IN ?", req.EmployeeIDs).Find(&employees).Error; err != nil {
+		// Process only selected employees (but still exclude admins/inactive)
+		if err := database.DB.
+			Where("id IN ?", req.EmployeeIDs).
+			Where("role != ? AND status = ?", models.RoleAdmin, "active").
+			Find(&employees).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch selected employees"})
 			return
 		}
@@ -487,8 +490,13 @@ func ProcessMonthlyAccruals(c *gin.Context) {
 			return
 		}
 	} else {
-		// Process all employees
-		database.DB.Find(&employees)
+		// Process all active, non-admin employees
+		if err := database.DB.
+			Where("role != ? AND status = ?", models.RoleAdmin, "active").
+			Find(&employees).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch employees"})
+			return
+		}
 	}
 
 	processed := 0
